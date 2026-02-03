@@ -146,23 +146,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Cost Center : ${activeCenter.name}',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.tealAccent),
-                      ),
-                      Text(
-                        'Last Updated: ${DateFormat('HH:mm:ss').format(provider.lastSync)}',
-                        style: const TextStyle(fontSize: 10, color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                ),
                 if (provider.isSyncing)
                   Row(
                     mainAxisSize: MainAxisSize.min,
