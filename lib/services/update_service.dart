@@ -29,28 +29,34 @@ class UpdateService {
         debugPrint('Update Check: Local=$localTimestamp, Server=$serverTimestamp');
 
         // 3. If server is newer, prompt user
+        // 3. If server is newer, prompt user
         if (serverTimestamp > localTimestamp) {
-          // Update local ref immediately so we don't spam if they ignore (optional, but better to persist only on reload)
-          // For now, we just show the banner.
-          
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('New version available!'),
-                duration: const Duration(days: 1), // Stay open
-                action: SnackBarAction(
-                  label: 'UPDATE NOW',
-                  textColor: Colors.tealAccent,
-                  onPressed: () async {
-                     await prefs.setInt(_prefsKey, serverTimestamp);
-                     html.window.location.reload();
-                  },
-                ),
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (context) => AlertDialog(
+                title: const Text('🌟 New Update Available!'),
+                content: const Text('A new version of the app is ready. Please update to see the latest changes.'),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Later'),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                       await prefs.setInt(_prefsKey, serverTimestamp);
+                       html.window.location.reload();
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
+                    child: const Text('Update Now', style: TextStyle(color: Colors.white)),
+                  ),
+                ],
               ),
             );
           }
         } else {
-           // If first run (local is 0), just set it
+           // If first run, sync with server
            if (localTimestamp == 0) {
              await prefs.setInt(_prefsKey, serverTimestamp);
            }

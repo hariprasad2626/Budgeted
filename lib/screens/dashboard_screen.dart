@@ -560,6 +560,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               );
             }
           ),
+          ListTile(
+            leading: const Icon(Icons.system_update, color: Colors.blueAccent),
+            title: const Text('Check for Updates'),
+            onTap: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Checking for updates...')));
+              UpdateService.checkForUpdate(context);
+            },
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.redAccent),
