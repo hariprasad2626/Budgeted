@@ -179,8 +179,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ),
             const SizedBox(height: 16),
           
-          const Text('COST CENTER OVERVIEW', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
-          const SizedBox(height: 8),
+
 
           const SizedBox(height: 16),
           
