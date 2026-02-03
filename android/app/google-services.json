@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "855151708999",
+    "project_id": "accounts-app-c87ea",
+    "storage_bucket": "accounts-app-c87ea.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:855151708999:android:1a30dbd15ff4aeee625a62",
+        "android_client_info": {
+          "package_name": "com.example.cost_center_accounting"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDKQgB0jDn_GGbmN0WiBhR9wiFkOjd1Y6w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

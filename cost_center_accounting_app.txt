@@ -1,0 +1,175 @@
+# Scalable Cost Center Accounting & Personal Reconciliation App (Flutter + Firestore)
+
+## Objective
+Build a Flutter mobile app using Firebase Firestore for **Cost Center Accounting and Personal Account Reconciliation**.
+
+This is NOT a normal expense tracker.
+
+This app must support **multiple Cost Centers** in the future while using a **single shared Personal Account**.
+
+The system manages a **multi-ledger accounting structure**:
+
+1. Multiple ISKCON Cost Centers (each with OTE / PME budgets)
+2. One shared Personal Account (where real spending happens)
+3. Unbudgeted Wallet inside each Cost Center (optional donation holding)
+
+---
+
+## Core Accounting Principles (MUST FOLLOW)
+
+1. Budget is already allocated. App starts from current balances.
+2. Withdrawals from ISKCON to personal account DO NOT affect budget.
+3. Only EXPENSES reduce budget.
+4. Expense budget type is auto-derived from selected category.
+5. Donations can:
+   - Merge into any budget category (OTE/PME), OR
+   - Go into an Unbudgeted Wallet of that Cost Center.
+6. Personal adjustments (debit/credit) affect only the personal account.
+7. Every entry must contain: amount, date, remarks.
+8. Every entry (except personal adjustments) must be linked to a Cost Center.
+
+---
+
+## Firestore Collections (create exactly)
+
+### `cost_centers`
+- name (string)
+- isActive (bool)
+- createdAt (timestamp)
+- remarks (string)
+
+---
+
+### `budget_categories`
+- costCenterId (reference)
+- category (string)
+- subCategory (string)
+- budgetType (OTE | PME)
+- isActive (bool)
+- remarks (string)
+- createdAt (timestamp)
+
+---
+
+### `budget_allocations`
+- costCenterId (reference)
+- budgetType (OTE | PME)
+- amount (number)
+- month (nullable, required for PME)
+- date (timestamp)
+- remarks (string)
+
+---
+
+### `donations`
+- costCenterId (reference)
+- amount (number)
+- mode (MERGE_TO_BUDGET | WALLET)
+- budgetCategoryId (nullable)
+- date (timestamp)
+- remarks (string)
+
+---
+
+### `fund_transfers`
+- amount (number)
+- date (timestamp)
+- remarks (string)
+
+(Note: fund transfers are NOT tied to a cost center because personal account is shared.)
+
+---
+
+### `expenses`
+- costCenterId (reference)
+- categoryId (reference)
+- amount (number)
+- budgetType (OTE | PME) [auto from category]
+- moneySource (PERSONAL | WALLET)
+- date (timestamp)
+- remarks (string)
+- billImageUrl (string)
+
+---
+
+### `personal_adjustments`
+- type (DEBIT | CREDIT)
+- amount (number)
+- date (timestamp)
+- remarks (string)
+
+---
+
+## Balance Calculations (must be computed in app)
+
+### Personal Account Balance
+Fund Transfers
+– Expenses where moneySource PERSONAL
+– Personal DEBIT
++ Personal CREDIT
+
+### For EACH Cost Center
+
+#### OTE Balance
+OTE Allocations of that cost center
++ Donations merged to OTE categories
+– OTE Expenses
+
+#### PME Balance (current month)
+PME Allocation of month
++ Donations merged to PME categories
+– PME Expenses of month
+
+#### Unbudgeted Wallet Balance
+Donations with WALLET mode
+– Expenses with moneySource WALLET
+
+---
+
+## Required Screens
+
+1. Dashboard
+   - Select Cost Center
+   - OTE balance
+   - PME balance (current month)
+   - Wallet balance
+   - Personal account balance
+   - Graphs by category and month
+
+2. Add Expense (must select cost center)
+3. Add Donation (must select cost center)
+4. Add Fund Transfer
+5. Add Personal Adjustment
+6. Manage Cost Centers
+7. Manage Budget Categories (add/edit/deactivate per cost center)
+8. Reports (category-wise, monthly, cost center wise)
+
+---
+
+## UX Rules
+
+- Selecting subcategory auto-fills OTE/PME
+- Remarks mandatory for all entries
+- Bill image upload for expenses
+- Categories are dynamic per cost center
+- No manual balance editing allowed anywhere
+
+---
+
+## Output Expectations
+
+Generate:
+- Flutter model classes
+- Firestore service layer
+- UI screens
+- State management
+- Proper separation of logic and UI
+
+---
+
+## Accounting Integrity
+
+The system must behave like **double-entry reconciliation** between:
+- Each Cost Center
+- Shared Personal Account
+- Wallet inside each Cost Center

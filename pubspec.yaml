@@ -1,0 +1,26 @@
+name: cost_center_accounting
+description: A new Flutter project for Cost Center Accounting and Personal Reconciliation.
+version: 1.1.0+2
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  firebase_core: ^3.0.0
+  firebase_auth: ^5.0.0
+  cloud_firestore: ^5.0.0
+  provider: ^6.0.0
+  intl: ^0.19.0
+  fl_chart: ^0.68.0
+  uuid: ^4.4.0
+  google_sign_in: ^6.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
