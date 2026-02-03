@@ -16,6 +16,8 @@ dependencies:
   fl_chart: ^0.68.0
   uuid: ^4.4.0
   google_sign_in: ^6.2.1
+  shared_preferences: ^2.5.4
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:
