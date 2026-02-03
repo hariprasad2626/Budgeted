@@ -988,12 +988,5 @@ class _ActionCard extends StatelessWidget {
         ),
       ),
     );
-  }                fontSize: 10,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
