@@ -38,6 +38,13 @@ class AccountingProvider with ChangeNotifier {
   String? get activeCostCenterId => _activeCostCenterId;
   DateTime get lastSync => _lastSync;
   bool get isSyncing => _isSyncing;
+  bool _isDarkMode = true;
+  bool get isDarkMode => _isDarkMode;
+
+  void toggleTheme() {
+    _isDarkMode = !_isDarkMode;
+    notifyListeners();
+  }
   
   CostCenter? get activeCostCenter => _costCenters.isEmpty 
       ? null 

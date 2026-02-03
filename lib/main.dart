@@ -60,30 +60,37 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Cost Center Accounting',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal, brightness: Brightness.dark),
-        useMaterial3: true,
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+    return Consumer<AccountingProvider>(
+      builder: (context, provider, child) {
+        return MaterialApp(
+          title: 'Budgeted',
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.teal, 
+              brightness: provider.isDarkMode ? Brightness.dark : Brightness.light
+            ),
+            useMaterial3: true,
+            elevatedButtonTheme: ElevatedButtonThemeData(
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+            ),
           ),
-        ),
-      ),
-      home: const AuthWrapper(),
-      routes: {
-        '/add-expense': (context) => const AddExpenseScreen(),
-        '/add-donation': (context) => const AddDonationScreen(),
-        '/add-transfer': (context) => const AddTransferScreen(),
-        '/add-adjustment': (context) => const AddAdjustmentScreen(),
-        '/manage-categories': (context) => const CategoryManagerScreen(),
-        '/manage-allocations': (context) => const BudgetAllocationScreen(),
-        '/fixed-amounts': (context) => const FixedAmountsManagerScreen(),
-        '/manage-cost-centers': (context) => const CostCenterManagerScreen(),
-        '/reports': (context) => const ReportsScreen(),
-        '/ledger': (context) => const LedgerScreen(),
-        '/personal-ledger': (context) => const PersonalLedgerScreen(),
+          home: const AuthWrapper(),
+          routes: {
+            '/add-expense': (context) => const AddExpenseScreen(),
+            '/add-donation': (context) => const AddDonationScreen(),
+            '/add-transfer': (context) => const AddTransferScreen(),
+            '/add-adjustment': (context) => const AddAdjustmentScreen(),
+            '/manage-categories': (context) => const CategoryManagerScreen(),
+            '/manage-allocations': (context) => const BudgetAllocationScreen(),
+            '/fixed-amounts': (context) => const FixedAmountsManagerScreen(),
+            '/manage-cost-centers': (context) => const CostCenterManagerScreen(),
+            '/reports': (context) => const ReportsScreen(),
+            '/ledger': (context) => const LedgerScreen(),
+            '/personal-ledger': (context) => const PersonalLedgerScreen(),
+          },
+        );
       },
     );
   }

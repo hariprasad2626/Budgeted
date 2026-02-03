@@ -536,6 +536,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             title: const Text('Manage Cost Centers'),
             onTap: () { Navigator.pop(context); Navigator.pushNamed(context, '/manage-cost-centers'); },
           ),
+          Consumer<AccountingProvider>(
+            builder: (context, provider, _) {
+              return SwitchListTile(
+                title: const Text('Dark Mode'),
+                secondary: Icon(provider.isDarkMode ? Icons.dark_mode : Icons.light_mode, color: Colors.purpleAccent),
+                value: provider.isDarkMode,
+                onChanged: (val) => provider.toggleTheme(),
+              );
+            }
+          ),
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.redAccent),
