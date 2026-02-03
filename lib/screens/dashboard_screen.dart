@@ -16,6 +16,7 @@ import 'add_center_adjustment_screen.dart';
 import 'add_transfer_screen.dart';
 import '../models/cost_center_adjustment.dart';
 import 'transaction_history_screen.dart';
+import '../services/update_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -26,6 +27,14 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _selectedIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateService.checkForUpdate(context);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
