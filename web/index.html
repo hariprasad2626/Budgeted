@@ -29,17 +29,25 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  
   <title>cost_center_accounting</title>
   <link rel="manifest" href="manifest.json">
   <script>
-    // This script ensures that when a new service worker is installed (new version),
-    // the page reloads automatically to show the changes immediately.
-    let refreshing = false;
+    // Force cleanup of old caches on load if needed
     if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+           // Optional: Unregister to force fresh fetch if stuck
+           // registration.unregister();
+        }
+      });
+      
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshing) return;
-        refreshing = true;
-        window.location.reload();
+         // This triggers when the new service worker takes over
+         window.location.reload();
       });
     }
   </script>
