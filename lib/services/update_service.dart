@@ -11,7 +11,7 @@ class UpdateService {
   static const String _prefsKey = 'app_build_timestamp';
 
   /// Checks for updates by comparing local timestamp with server timestamp
-  static Future<void> checkForUpdate(BuildContext context) async {
+  static Future<void> checkForUpdate(BuildContext context, {bool manual = false}) async {
     if (!kIsWeb) return;
 
     try {
@@ -21,6 +21,7 @@ class UpdateService {
       if (response.statusCode == 200) {
         final serverData = json.decode(response.body);
         final int serverTimestamp = serverData['timestamp'] ?? 0;
+        final String serverVersion = serverData['version'] ?? 'Unknown';
 
         // 2. Get local timestamp
         final prefs = await SharedPreferences.getInstance();
@@ -28,21 +29,30 @@ class UpdateService {
 
         debugPrint('Update Check: Local=$localTimestamp, Server=$serverTimestamp');
 
-        // 3. If server is newer, prompt user
-        // 3. If server is newer, prompt user
-        if (serverTimestamp > localTimestamp) {
+        bool hasNewVersion = serverTimestamp > localTimestamp;
+
+        // Special case: If local is 0 (fresh install/clear data), we usually assume we are latest.
+        // UNLESS this is a manual check, in which case we might be on a stale cached version.
+        if (localTimestamp == 0 && !manual) {
+           // Fresh start auto-check: assume we are up to date to avoid annoying new users.
+           await prefs.setInt(_prefsKey, serverTimestamp);
+           hasNewVersion = false; 
+        }
+
+        if (hasNewVersion) {
           if (context.mounted) {
             showDialog(
               context: context,
               barrierDismissible: false,
               builder: (context) => AlertDialog(
                 title: const Text('🌟 New Update Available!'),
-                content: const Text('A new version of the app is ready. Please update to see the latest changes.'),
+                content: Text('Version $serverVersion is available. Please update to see the latest changes.'),
                 actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Later'),
-                  ),
+                  if (!manual) 
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Later'),
+                    ),
                   ElevatedButton(
                     onPressed: () async {
                        await prefs.setInt(_prefsKey, serverTimestamp);
@@ -55,15 +65,22 @@ class UpdateService {
               ),
             );
           }
-        } else {
-           // If first run, sync with server
-           if (localTimestamp == 0) {
-             await prefs.setInt(_prefsKey, serverTimestamp);
+        } else if (manual) {
+           // Manual check and no update
+           if (context.mounted) {
+             ScaffoldMessenger.of(context).showSnackBar(
+               SnackBar(content: Text('You are up to date! (Version: $serverVersion)')),
+             );
            }
         }
       }
     } catch (e) {
       debugPrint('Error checking for updates: $e');
+      if (manual && context.mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('Check failed: $e')),
+         );
+      }
     }
   }
 }

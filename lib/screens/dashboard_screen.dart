@@ -566,7 +566,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             onTap: () {
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Checking for updates...')));
-              UpdateService.checkForUpdate(context);
+              UpdateService.checkForUpdate(context, manual: true);
             },
           ),
           const Divider(),
