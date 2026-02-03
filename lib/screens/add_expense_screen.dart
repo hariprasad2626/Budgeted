@@ -87,20 +87,28 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         isExpanded: true,
                         decoration: _inputDecoration('Money Source'),
                         value: _moneySource,
-                        items: MoneySource.values.where((s) => s != MoneySource.PERSONAL).map((s) => DropdownMenuItem(
-                          value: s, 
-                          child: Text(_getMoneySourceLabel(s)),
-                        )).toList(),
+                        items: MoneySource.values.where((s) => s != MoneySource.PERSONAL).map((s) {
+                          String balanceStr = '';
+                          if (s == MoneySource.WALLET) balanceStr = ' (₹${provider.walletBalance.toStringAsFixed(0)})';
+                          return DropdownMenuItem(
+                            value: s, 
+                            child: Text(_getMoneySourceLabel(s) + balanceStr),
+                          );
+                        }).toList(),
                         onChanged: (val) => setState(() => _moneySource = val!),
                       ),
                     if (_moneySource == MoneySource.ISKCON) ...[
                       const SizedBox(height: 24),
                       Text('CATEGORY', style: _labelStyle),
                       const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
+                      DropdownButtonFormField<String?>(
+                        isExpanded: true,
                         decoration: _inputDecoration('Main Category'),
                         value: parentCategories.contains(_selectedCategoryName) ? _selectedCategoryName : null,
-                        items: parentCategories.map((name) => DropdownMenuItem(value: name, child: Text(name))).toList(),
+                        items: parentCategories.map<DropdownMenuItem<String?>>((name) {
+                          double catTotal = allCats.where((c) => c.category == name).fold(0, (sum, c) => sum + provider.getCategoryStatus(c)['remaining']!);
+                          return DropdownMenuItem<String?>(value: name, child: Text('$name (₹${catTotal.toStringAsFixed(0)})', overflow: TextOverflow.ellipsis));
+                        }).toList(),
                         onChanged: (val) {
                           setState(() {
                             _selectedCategoryName = val;
@@ -111,13 +119,17 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         validator: (val) => val == null ? 'Required' : null,
                       ),
                       const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
+                      DropdownButtonFormField<String?>(
+                        isExpanded: true,
                         decoration: _inputDecoration('Sub Category'),
                         value: filteredSubCats.any((c) => c.id == _selectedCategoryId) ? _selectedCategoryId : null,
-                        items: filteredSubCats.map((c) => DropdownMenuItem(
-                          value: c.id,
-                          child: Text('${c.subCategory} (${c.budgetType.name})'),
-                        )).toList(),
+                        items: filteredSubCats.map<DropdownMenuItem<String?>>((c) {
+                          double rem = provider.getCategoryStatus(c)['remaining']!;
+                          return DropdownMenuItem<String?>(
+                            value: c.id,
+                            child: Text('${c.subCategory} (₹${rem.toStringAsFixed(0)})', overflow: TextOverflow.ellipsis),
+                          );
+                        }).toList(),
                         onChanged: (val) {
                           setState(() {
                             _selectedCategoryId = val;
@@ -268,7 +280,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
        finalBudgetType = _derivedBudgetType!;
     } else {
        // For Wallet/Personal, try to find a 'General' category or just pick the first one as placeholder
-       // This ensures the data model constraint is met.
        final generalCat = provider.categories.firstWhere(
           (c) => c.category.toLowerCase().contains('general') || c.subCategory.toLowerCase().contains('general'),
           orElse: () => provider.categories.isNotEmpty ? provider.categories.first : 

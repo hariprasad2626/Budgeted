@@ -236,7 +236,18 @@ class AccountingProvider with ChangeNotifier {
 
     double adjustments = _getAdjustmentTotal(BudgetType.OTE);
 
-    return oteAllocation + oteDonations - oteSpent + adjustments;
+    // Internal Transfers: Subtract outgoing, Add incoming
+    double outgoingTransfers = _transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId != null)
+        .where((t) => _categories.any((c) => c.id == t.fromCategoryId && c.budgetType == BudgetType.OTE))
+        .fold(0.0, (sum, t) => sum + t.amount);
+    
+    double incomingTransfers = _transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId != null)
+        .where((t) => _categories.any((c) => c.id == t.toCategoryId && c.budgetType == BudgetType.OTE))
+        .fold(0.0, (sum, t) => sum + t.amount);
+
+    return oteAllocation + oteDonations - oteSpent + adjustments - outgoingTransfers + incomingTransfers;
   }
 
   double get pmeBalance {
@@ -282,7 +293,18 @@ class AccountingProvider with ChangeNotifier {
 
     double adjustments = _getAdjustmentTotal(BudgetType.PME);
 
-    return pmeAllocationTotal + pmeDonations - pmeSpent + adjustments - advanceUnsettled;
+    // Internal Transfers: Subtract outgoing, Add incoming
+    double outgoingTransfers = _transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId != null)
+        .where((t) => _categories.any((c) => c.id == t.fromCategoryId && c.budgetType == BudgetType.PME))
+        .fold(0.0, (sum, t) => sum + t.amount);
+    
+    double incomingTransfers = _transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId != null)
+        .where((t) => _categories.any((c) => c.id == t.toCategoryId && c.budgetType == BudgetType.PME))
+        .fold(0.0, (sum, t) => sum + t.amount);
+
+    return pmeAllocationTotal + pmeDonations - pmeSpent + adjustments - advanceUnsettled - outgoingTransfers + incomingTransfers;
   }
 
 
@@ -295,9 +317,9 @@ class AccountingProvider with ChangeNotifier {
     final center = activeCostCenter;
     if (center == null) return 0;
 
-    // 1. Total Advances taken from THIS center
+    // 1. Total Advances taken from THIS center (TO_PERSONAL type only)
     double totalAdvancesFromCenter = _transfers
-        .where((t) => t.costCenterId == center.id)
+        .where((t) => t.costCenterId == center.id && t.type == TransferType.TO_PERSONAL)
         .fold<double>(0.0, (sum, t) => sum + t.amount);
 
     // 2. Personal Expenses made for THIS center
@@ -375,7 +397,18 @@ class AccountingProvider with ChangeNotifier {
         .where((a) => a.categoryId == null)
         .fold(0, (sum, a) => sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount));
 
-    return unallocatedPme + unallocatedOte + walletDonations - walletExpenses + centerAdjustments;
+    // 5. Internal Transfers to/from Wallet
+    // Transfers FROM category TO Wallet (toCategoryId is null)
+    double transfersIntoWallet = _transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == null && t.fromCategoryId != null)
+        .fold(0.0, (sum, t) => sum + t.amount);
+    
+    // Transfers FROM Wallet (not supported yet in UI, but for logic completeness) TO category
+    double transfersOutOfWallet = _transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == null && t.toCategoryId != null)
+        .fold(0.0, (sum, t) => sum + t.amount);
+
+    return unallocatedPme + unallocatedOte + walletDonations - walletExpenses + centerAdjustments + transfersIntoWallet - transfersOutOfWallet;
   }
 
   Map<String, double> getCategoryStatus(BudgetCategory cat) {
@@ -397,13 +430,22 @@ class AccountingProvider with ChangeNotifier {
         .where((a) => a.categoryId == cat.id)
         .fold(0, (sum, a) => sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount));
 
+    double outgoingTransfers = _transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == cat.id)
+        .fold(0.0, (sum, t) => sum + t.amount);
+    
+    double incomingTransfers = _transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == cat.id)
+        .fold(0.0, (sum, t) => sum + t.amount);
+
     return {
       'budget': budget,
       'donations': donations,
       'spent': spent,
       'adjustments': adjustments,
-      'total_limit': budget + donations + adjustments,
-      'remaining': budget + donations - spent + adjustments,
+      'transfers': incomingTransfers - outgoingTransfers,
+      'total_limit': budget + donations + adjustments + incomingTransfers - outgoingTransfers,
+      'remaining': budget + donations - spent + adjustments + incomingTransfers - outgoingTransfers,
     };
   }
 

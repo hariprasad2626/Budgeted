@@ -79,17 +79,19 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<DonationMode>(
+                      isExpanded: true,
                       decoration: _inputDecoration('Donation Mode'),
                       value: _mode,
-                      items: DonationMode.values.map((m) => DropdownMenuItem(value: m, child: Text(m.toString().split('.').last))).toList(),
+                      items: DonationMode.values.map((m) => DropdownMenuItem(value: m, child: Text(m.toString().split('.').last, overflow: TextOverflow.ellipsis))).toList(),
                       onChanged: (val) => setState(() => _mode = val!),
                     ),
                     const SizedBox(height: 16),
                     if (_mode == DonationMode.MERGE_TO_BUDGET) ...[
                       DropdownButtonFormField<String>(
+                        isExpanded: true,
                         decoration: _inputDecoration('Target Category'),
                         value: parentCategories.contains(_selectedCategoryName) ? _selectedCategoryName : null,
-                        items: parentCategories.map((name) => DropdownMenuItem(value: name, child: Text(name))).toList(),
+                        items: parentCategories.map((name) => DropdownMenuItem(value: name, child: Text(name, overflow: TextOverflow.ellipsis))).toList(),
                         onChanged: (val) => setState(() {
                           _selectedCategoryName = val;
                           _selectedCategoryId = null;
@@ -98,9 +100,10 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
+                        isExpanded: true,
                         decoration: _inputDecoration('Sub Category'),
                         value: filteredSubCats.any((c) => c.id == _selectedCategoryId) ? _selectedCategoryId : null,
-                        items: filteredSubCats.map((c) => DropdownMenuItem(value: c.id, child: Text(c.subCategory))).toList(),
+                        items: filteredSubCats.map((c) => DropdownMenuItem(value: c.id, child: Text(c.subCategory, overflow: TextOverflow.ellipsis))).toList(),
                         onChanged: (val) => setState(() => _selectedCategoryId = val),
                         validator: (val) => (_mode == DonationMode.MERGE_TO_BUDGET && val == null) ? 'Required' : null,
                       ),

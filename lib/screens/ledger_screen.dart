@@ -61,7 +61,7 @@ class LedgerScreen extends StatelessWidget {
                       'title': filterMode == 'WALLET' ? 'OTE Wallet Fund' : 'OTE Budget Allocation',
                       'color': Colors.tealAccent,
                       'item': null,
-                      'budgetType': 'OTE',
+                      'budgetType': filterMode == 'WALLET' ? 'WALLET' : 'OTE',
                       'status': 'Allocated',
                       'statusColor': Colors.teal,
                   });
@@ -86,7 +86,7 @@ class LedgerScreen extends StatelessWidget {
                          'title': filterMode == 'WALLET' ? 'Monthly Wallet Fund' : 'Monthly PME Budget',
                          'color': Colors.purpleAccent,
                          'item': null,
-                         'budgetType': 'PME',
+                         'budgetType': filterMode == 'WALLET' ? 'WALLET' : 'PME',
                          'status': 'Recurring',
                          'statusColor': Colors.purple,
                       });
@@ -98,24 +98,42 @@ class LedgerScreen extends StatelessWidget {
         // Gather all relevant transactions for this center
         List<Map<String, dynamic>> allEntries = [
           ...budgetEntries,
-          ...provider.expenses.where((e) => e.moneySource != MoneySource.PERSONAL).map((e) => {
+          ...provider.expenses.where((e) => e.moneySource != MoneySource.PERSONAL && e.amount != 0).map((e) {
+                final source = e.moneySource.toString().split('.').last;
+                String catName = 'General Wallet';
+                try {
+                  final cat = provider.categories.firstWhere((c) => c.id == e.categoryId);
+                  catName = '${cat.category} -> ${cat.subCategory}';
+                } catch (_) {}
+                
+                return {
                 'type': 'Expense',
-                'source': e.moneySource.toString().split('.').last,
+                'source': source,
                 'amount': -e.amount,
                 'date': e.date,
                 'title': e.remarks,
                 'color': Colors.redAccent,
                 'item': e,
-                'budgetType': e.budgetType.toString().split('.').last,
+                'budgetType': source == 'WALLET' ? 'WALLET' : e.budgetType.toString().split('.').last,
                 'status': 'Debited',
                 'statusColor': Colors.redAccent,
-              }),
+                'categoryPath': catName,
+              };
+            }),
 
-          ...provider.donations.map((d) {
-                String bType = 'OTE';
-                try {
-                   bType = provider.categories.firstWhere((c) => c.id == d.budgetCategoryId).budgetType.toString().split('.').last;
-                } catch (_) {}
+          ...provider.donations.where((d) => d.amount != 0).map((d) {
+                String? bType;
+                String catName = 'General Wallet';
+                if (d.mode == DonationMode.MERGE_TO_BUDGET && d.budgetCategoryId != null) {
+                  try {
+                    final cat = provider.categories.firstWhere((c) => c.id == d.budgetCategoryId);
+                    bType = cat.budgetType.toString().split('.').last;
+                    catName = '${cat.category} -> ${cat.subCategory}';
+                  } catch (_) {}
+                } else if (d.mode == DonationMode.WALLET) {
+                  bType = 'WALLET';
+                }
+
                 return {
                 'type': 'Donation',
                 'source': d.mode == DonationMode.WALLET ? 'WALLET' : 'ISKCON',
@@ -127,22 +145,93 @@ class LedgerScreen extends StatelessWidget {
                 'budgetType': bType,
                 'status': 'Received',
                 'statusColor': Colors.greenAccent,
+                'categoryPath': catName,
               };
           }),
-           ...provider.transfers.where((t) => t.costCenterId == activeCenter.id).map((t) => {
-                'type': 'Transfer',
-                'source': 'Cost Center',
-                'amount': -t.amount,
-                'date': t.date,
-                'title': 'Advance: ${t.remarks}',
-                'color': Colors.blueAccent,
-                'item': t,
-                'budgetType': 'PME', // Transfers usually impact PME room
-                'status': 'Advance',
-                'statusColor': Colors.blueAccent,
+           ...provider.transfers.where((t) => t.costCenterId == activeCenter.id && t.amount != 0).expand((t) {
+                if (t.type == TransferType.TO_PERSONAL) {
+                  return [{
+                    'type': 'Transfer',
+                    'source': 'Cost Center',
+                    'amount': -t.amount,
+                    'date': t.date,
+                    'title': 'Advance: ${t.remarks}',
+                    'color': Colors.blueAccent,
+                    'item': t,
+                    'budgetType': 'PME', 
+                    'status': 'Advance',
+                    'statusColor': Colors.blueAccent,
+                    'categoryPath': 'Cost Center -> Personal',
+                  }];
+                } else {
+                  // Category-to-Category (or Category-to-Wallet)
+                  List<Map<String, dynamic>> entries = [];
+                  
+                  // Outgoing Debit
+                  String? fromBType;
+                  String fromName = 'General Wallet';
+                  if (t.fromCategoryId != null) {
+                    try {
+                      final cat = provider.categories.firstWhere((c) => c.id == t.fromCategoryId);
+                      fromBType = cat.budgetType.toString().split('.').last;
+                      fromName = '${cat.category} -> ${cat.subCategory}';
+                    } catch (_) { fromBType = 'WALLET'; }
+                  } else {
+                    fromBType = 'WALLET';
+                  }
+
+                  entries.add({
+                    'type': 'Internal Transfer',
+                    'source': 'Outgoing',
+                    'amount': -t.amount,
+                    'date': t.date,
+                    'title': 'Trf Out: ${t.remarks}',
+                    'color': Colors.redAccent,
+                    'item': t,
+                    'budgetType': fromBType,
+                    'status': 'Debited',
+                    'statusColor': Colors.redAccent,
+                    'categoryPath': fromName,
+                  });
+
+                  // Incoming Credit
+                  String? toBType;
+                  String toName = 'General Wallet';
+                  if (t.toCategoryId != null) {
+                    try {
+                      final cat = provider.categories.firstWhere((c) => c.id == t.toCategoryId);
+                      toBType = cat.budgetType.toString().split('.').last;
+                      toName = '${cat.category} -> ${cat.subCategory}';
+                    } catch (_) { toBType = 'WALLET'; }
+                  } else {
+                    toBType = 'WALLET';
+                  }
+
+                  entries.add({
+                    'type': 'Internal Transfer',
+                    'source': 'Incoming',
+                    'amount': t.amount,
+                    'date': t.date,
+                    'title': 'Trf In: ${t.remarks}',
+                    'color': Colors.greenAccent,
+                    'item': t,
+                    'budgetType': toBType,
+                    'status': 'Received',
+                    'statusColor': Colors.greenAccent,
+                    'categoryPath': toName,
+                  });
+
+                  return entries;
+                }
            }),
-           ...provider.centerAdjustments.map((a) {
+           ...provider.centerAdjustments.where((a) => a.amount != 0).map((a) {
                 final isCredit = a.type == AdjustmentType.CREDIT;
+                String? bType;
+                if (a.budgetType != null) {
+                  bType = a.budgetType.toString().split('.').last;
+                } else {
+                  bType = 'WALLET';
+                }
                 return {
                     'type': 'Adjustment',
                     'source': 'Center',
@@ -151,13 +240,20 @@ class LedgerScreen extends StatelessWidget {
                     'title': a.remarks,
                     'color': Colors.orangeAccent,
                     'item': a,
-                    'budgetType': a.budgetType.toString().split('.').last,
+                    'budgetType': bType,
                     'status': isCredit ? 'Credit' : 'Debit',
                     'statusColor': Colors.orangeAccent,
+                    'categoryPath': 'Manual Adjustment',
                 };
            }),
            // Personal Expenses (for Advance view)
-           ...provider.expenses.where((e) => e.moneySource == MoneySource.PERSONAL).map((e) {
+           ...provider.expenses.where((e) => e.moneySource == MoneySource.PERSONAL && e.amount != 0).map((e) {
+                String catName = 'General Wallet';
+                try {
+                  final cat = provider.categories.firstWhere((c) => c.id == e.categoryId);
+                  catName = '${cat.category} -> ${cat.subCategory}';
+                } catch (_) {}
+
                 return {
                     'type': 'Settlement',
                     'source': 'Personal',
@@ -166,9 +262,10 @@ class LedgerScreen extends StatelessWidget {
                     'title': 'Settled: ${e.remarks}',
                     'color': e.isSettled ? Colors.green : Colors.grey,
                     'item': e,
-                    'budgetType': e.budgetType.toString().split('.').last,
+                    'budgetType': 'PME', // Personal settlements offset advances which were marked as PME
                     'status': e.isSettled ? 'Settled' : 'Unsettled',
                     'statusColor': e.isSettled ? Colors.green : Colors.grey,
+                    'categoryPath': catName,
                 };
            }),
         ];
@@ -180,23 +277,18 @@ class LedgerScreen extends StatelessWidget {
         if (filterMode == 'OTE') {
           displayBalance = provider.oteBalance;
           headerTitle = 'OTE Balance';
+          // OTE ledger should ONLY show OTE budget, OTE expenses, and OTE-merged donations/adjustments
           allEntries = allEntries.where((e) => e['budgetType'] == 'OTE' && e['type'] != 'Transfer' && e['type'] != 'Settlement').toList();
         } else if (filterMode == 'PME') {
           displayBalance = provider.pmeBalance;
           headerTitle = 'PME Balance';
-          allEntries = allEntries.where((e) => e['budgetType'] == 'PME' && e['type'] != 'Transfer' && e['type'] != 'Settlement').toList();
+          // PME ledger should show PME budget, PME expenses, and Transfers (Advances)
+          allEntries = allEntries.where((e) => (e['budgetType'] == 'PME' || e['type'] == 'Transfer') && e['type'] != 'Settlement').toList();
         } else if (filterMode == 'WALLET') {
           displayBalance = provider.walletBalance;
           headerTitle = 'Wallet Balance';
-          allEntries = allEntries.where((e) {
-            final type = e['type'];
-            final source = e['source'];
-            final item = e['item'];
-            
-            return source == 'WALLET' || 
-                   type == 'Budget' || 
-                   (type == 'Adjustment' && item is CostCenterAdjustment && item.categoryId == null);
-          }).toList();
+          // Wallet ledger shows everything tagged as WALLET
+          allEntries = allEntries.where((e) => e['budgetType'] == 'WALLET').toList();
         } else if (filterMode == 'ADVANCE') {
           displayBalance = provider.advanceUnsettled;
           headerTitle = 'Advance Unsettled';
@@ -205,7 +297,7 @@ class LedgerScreen extends StatelessWidget {
            // ALL_CENTER
            displayBalance = provider.costCenterBudgetBalance;
            headerTitle = 'Total CC Balance';
-           // ALL_CENTER should show all entries except personal expenses (settlements)
+           // ALL_CENTER shows everything except settlements (which are personal)
            allEntries = allEntries.where((e) => e['type'] != 'Settlement').toList();
         }
 
@@ -304,7 +396,13 @@ class LedgerScreen extends StatelessWidget {
                                     const SizedBox(height: 2),
                                     Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                                     const SizedBox(height: 2),
-                                    Text('$type • $source', style: const TextStyle(fontSize: 11, color: Colors.white60)),
+                                    Text(
+                                      entry.containsKey('categoryPath') 
+                                        ? entry['categoryPath'] 
+                                        : '$type • $source', 
+                                      style: const TextStyle(fontSize: 11, color: Colors.white60),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ],
                                 ),
                               ),
@@ -329,27 +427,7 @@ class LedgerScreen extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                              const SizedBox(width: 8),
-                              IconButton(
-                                icon: const Icon(Icons.edit_note, size: 22, color: Colors.blueAccent),
-                                constraints: const BoxConstraints(),
-                                padding: EdgeInsets.zero,
-                                onPressed: () {
-                                  if (type == 'Expense') {
-                                    _showForm(context, AddExpenseScreen(expenseToEdit: item as Expense));
-                                  } else if (type == 'Donation') {
-                                    _showForm(context, AddDonationScreen(donationToEdit: item as Donation));
-                                  } else if (type == 'Adjustment') {
-                                    if (item is PersonalAdjustment) {
-                                      _showForm(context, AddAdjustmentScreen(adjustmentToEdit: item));
-                                    } else {
-                                      _showForm(context, AddCenterAdjustmentScreen(adjustmentToEdit: item as CostCenterAdjustment));
-                                    }
-                                  } else if (type == 'Transfer') {
-                                    _showForm(context, AddTransferScreen(transferToEdit: item as FundTransfer));
-                                  }
-                                },
-                              ),
+
                             ],
                           ),
                         ),
@@ -393,7 +471,14 @@ class LedgerScreen extends StatelessWidget {
               _showHistoryPopup(context, 'Donation History', provider.donations, 'Donation', const AddDonationScreen()); 
             },
           ),
-
+          ListTile(
+            leading: const Icon(Icons.swap_horiz, color: Colors.blueAccent),
+            title: const Text('Internal Fund Transfer'),
+            onTap: () { 
+              Navigator.pop(context); 
+              _showForm(context, const AddTransferScreen(initialType: TransferType.CATEGORY_TO_CATEGORY)); 
+            },
+          ),
           const SizedBox(height: 16),
         ],
       ),
@@ -420,13 +505,51 @@ class LedgerScreen extends StatelessWidget {
     if (item == null) return; // For system generated entries like Budget
     final provider = Provider.of<AccountingProvider>(context, listen: false);
 
-    String? categoryName;
+    String getCatName(String? id) {
+      if (id == null) return 'General Wallet / Unallocated';
+      try {
+        final cat = provider.categories.firstWhere((c) => c.id == id);
+        return '${cat.category} -> ${cat.subCategory}';
+      } catch (_) {
+        return 'Unknown Category';
+      }
+    }
+
+    String? categoryLine;
+    List<Widget> extraDetails = [];
+
     if (item is Expense) {
-      final cat = provider.categories.where((c) => c.id == item.categoryId).toList();
-      if (cat.isNotEmpty) categoryName = cat.first.name;
+      categoryLine = getCatName(item.categoryId);
+      extraDetails = [
+        const SizedBox(height: 8),
+        Text('Money Source: ${item.moneySource.toString().split('.').last}', style: const TextStyle(fontSize: 15)),
+        const SizedBox(height: 4),
+        Text('Budget Type: ${item.budgetType.toString().split('.').last}', style: const TextStyle(fontSize: 15)),
+      ];
     } else if (item is Donation) {
-      final cat = provider.categories.where((c) => c.id == item.budgetCategoryId).toList();
-      if (cat.isNotEmpty) categoryName = cat.first.name;
+      categoryLine = getCatName(item.budgetCategoryId);
+      extraDetails = [
+        const SizedBox(height: 8),
+        Text('Mode: ${item.mode.toString().split('.').last}', style: const TextStyle(fontSize: 15)),
+      ];
+    } else if (item is FundTransfer) {
+      if (item.type == TransferType.CATEGORY_TO_CATEGORY) {
+        extraDetails = [
+          const SizedBox(height: 8),
+          const Text('TRANSFER PATH:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const SizedBox(height: 4),
+          Text('FROM: ${getCatName(item.fromCategoryId)}', style: const TextStyle(fontSize: 14)),
+          const SizedBox(height: 4),
+          const Icon(Icons.arrow_downward, size: 16, color: Colors.grey),
+          const SizedBox(height: 4),
+          Text('TO: ${getCatName(item.toCategoryId)}', style: const TextStyle(fontSize: 14)),
+        ];
+      } else {
+        extraDetails = [
+          const SizedBox(height: 8),
+          const Text('TYPE: Personal Advance', style: TextStyle(fontSize: 14, color: Colors.blueAccent)),
+        ];
+      }
     }
 
     String? costCenterName;
@@ -440,7 +563,7 @@ class LedgerScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('$type Details'),
+        title: Text('${type == 'Internal Transfer' ? 'Fund Transfer' : type} Details'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -448,26 +571,21 @@ class LedgerScreen extends StatelessWidget {
             Text('Remarks: ${item.remarks}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const Divider(),
             const SizedBox(height: 8),
-            Text('Amount: ₹${item.amount}', style: const TextStyle(fontSize: 15)),
+            Text('Amount: ₹${item.amount}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
             const SizedBox(height: 4),
             Text('Date: ${DateFormat('yyyy-MM-dd').format(item.date)}', style: const TextStyle(fontSize: 15)),
-            if (categoryName != null) ...[
+            if (categoryLine != null) ...[
               const SizedBox(height: 4),
-              Text('Category: $categoryName', style: const TextStyle(fontSize: 15)),
+              Text('Category: $categoryLine', style: const TextStyle(fontSize: 15)),
             ],
             if (costCenterName != null) ...[
               const SizedBox(height: 4),
               Text('Cost Center: $costCenterName', style: const TextStyle(fontSize: 15)),
             ],
-            if (type == 'Expense') ...[
-              const SizedBox(height: 8),
-              Text('Source: ${item.moneySource.toString().split('.').last}', style: const TextStyle(fontSize: 15)),
-              const SizedBox(height: 4),
-              Text('Budget: ${item.budgetType.toString().split('.').last}', style: const TextStyle(fontSize: 15)),
-            ],
+            ...extraDetails,
             if (type == 'Adjustment') ...[
               const SizedBox(height: 8),
-              Text('Type: ${item.type.toString().split('.').last}', style: const TextStyle(fontSize: 15)),
+              Text('Adjustment Type: ${item.type.toString().split('.').last}', style: const TextStyle(fontSize: 15)),
             ],
           ],
         ),

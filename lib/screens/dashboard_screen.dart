@@ -129,7 +129,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Active Center: ${activeCenter.name}',
+                        'Cost Center : ${activeCenter.name}',
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.tealAccent),
                       ),
                       Text(
@@ -157,12 +157,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           
           const Text('COST CENTER OVERVIEW', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.2)),
           const SizedBox(height: 8),
-          BalanceCard(
-            title: 'Cost Center Balance (PME+OTE)',
-            amount: provider.costCenterBudgetBalance,
-            color: Colors.amber,
-            onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'ALL_CENTER'),
-          ),
+
           const SizedBox(height: 16),
           
           // Cost Center Reconciliation Section
@@ -180,12 +175,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Expected Cash/Bank', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                    IconButton(
-                      icon: const Icon(Icons.account_balance, color: Colors.blueAccent, size: 20),
-                      onPressed: () => _showUpdateCostCenterRealBalanceDialog(context, provider),
-                      tooltip: 'Set Actual Center Cash',
-                      constraints: const BoxConstraints(),
-                      padding: EdgeInsets.zero,
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.receipt_long, color: Colors.blueAccent, size: 20),
+                          onPressed: () => Navigator.pushNamed(context, '/ledger', arguments: 'ALL_CENTER'),
+                          tooltip: 'Full Statement',
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.only(right: 12),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.account_balance, color: Colors.blueAccent, size: 20),
+                          onPressed: () => _showUpdateCostCenterRealBalanceDialog(context, provider),
+                          tooltip: 'Set Actual Center Cash',
+                          constraints: const BoxConstraints(),
+                          padding: EdgeInsets.zero,
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -244,30 +251,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: BalanceCard(
-                  title: 'Wallet Balance',
-                  amount: provider.walletBalance,
-                  color: Colors.deepOrangeAccent,
-                  onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'WALLET'),
-                ),
+                  child: BalanceCard(
+                    title: 'Wallet Balance',
+                    amount: provider.walletBalance,
+                    color: Colors.deepOrangeAccent,
+                    onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'WALLET'),
+                  ),
               ),
             ],
           ),
           
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('RECENT CENTER ENTRIES', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.0)),
-              TextButton(
-                onPressed: () => Navigator.pushNamed(context, '/ledger'),
-                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 0), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                child: const Text('View All', style: TextStyle(fontSize: 12)),
-              ),
-            ],
-          ),
           const SizedBox(height: 8),
-          _buildCenterTransactions(context, provider),
 
           const SizedBox(height: 24),
           const Text(
@@ -329,83 +323,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildPersonalView(BuildContext context, AccountingProvider provider) {
     // Helper for names
-    String getCcName(String id) {
-      try {
-        return provider.costCenters.firstWhere((c) => c.id == id).name;
-      } catch (_) {
-        return 'Unknown Center';
-      }
-    }
 
-    String getCatName(String id) {
-      try {
-        final cat = provider.categories.firstWhere((c) => c.id == id);
-        return '${cat.category} -> ${cat.subCategory}';
-      } catch (_) {
-        return 'Category';
-      }
-    }
 
-    // Gather entries
-    final List<Map<String, dynamic>> personalActivity = [
-      ...provider.transfers.map((t) {
-        final ccName = getCcName(t.costCenterId);
-        return {
-          'title': 'Advance from $ccName',
-          'subtitle': t.remarks,
-          'amount': t.amount,
-          'date': t.date,
-          'type': 'Transfer',
-          'color': Colors.blueAccent,
-          'item': t,
-          'status': 'Received',
-          'statusColor': Colors.blueAccent,
-        };
-      }),
-      ...provider.allExpenses.where((e) => e.moneySource == MoneySource.PERSONAL && e.isSettled).map((e) {
-        final ccName = getCcName(e.costCenterId);
-        final catName = getCatName(e.categoryId);
-        return {
-          'title': e.remarks,
-          'subtitle': '$ccName -> $catName',
-          'amount': -e.amount,
-          'date': e.date,
-          'type': 'Expense',
-          'color': Colors.grey,
-          'item': e,
-          'status': 'Settled',
-          'statusColor': Colors.grey,
-        };
-      }),
-      ...provider.allExpenses.where((e) => e.moneySource == MoneySource.PERSONAL && !e.isSettled).map((e) {
-        final ccName = getCcName(e.costCenterId);
-        final catName = getCatName(e.categoryId);
-        return {
-          'title': e.remarks,
-          'subtitle': '$ccName -> $catName',
-          'amount': -e.amount,
-          'date': e.date,
-          'type': 'Expense',
-          'color': Colors.redAccent,
-          'item': e,
-          'status': 'Unsettled',
-          'statusColor': Colors.redAccent,
-        };
-      }),
-      ...provider.adjustments.map((a) {
-        return {
-          'title': 'Personal Adj: ${a.remarks}',
-          'subtitle': a.type.toString().split('.').last,
-          'amount': a.type == AdjustmentType.CREDIT ? a.amount : -a.amount,
-          'date': a.date,
-          'type': 'Adjustment',
-          'color': Colors.tealAccent,
-          'item': a,
-          'status': a.type.toString().split('.').last,
-          'statusColor': Colors.tealAccent,
-        };
-      }),
-    ]..sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
+
 
     return RefreshIndicator(
       color: Colors.tealAccent,
@@ -521,86 +441,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
           const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('RECENT PERSONAL ACTIVITY', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.0)),
-              TextButton(
-                onPressed: () => Navigator.pushNamed(context, '/personal-ledger'),
-                child: const Text('Full Ledger', style: TextStyle(fontSize: 12)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (personalActivity.isEmpty)
-            const Center(child: Padding(padding: EdgeInsets.all(20), child: Text('No personal activity yet.', style: TextStyle(color: Colors.grey))))
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: personalActivity.length.clamp(0, 8),
-              separatorBuilder: (context, index) => const Divider(height: 1, color: Colors.white10),
-              itemBuilder: (context, index) {
-                final entry = personalActivity[index];
-                final isPositive = (entry['amount'] as double) > 0;
-                final statusColor = entry['statusColor'] as Color;
-                
-                return InkWell(
-                  onTap: () => _showEntryDetails(context, entry['item'], entry['type']),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        CircleAvatar(
-                          backgroundColor: (entry['color'] as Color).withOpacity(0.1),
-                          radius: 20,
-                          child: Icon(isPositive ? Icons.arrow_downward : Icons.arrow_upward, color: entry['color'] as Color, size: 18),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                DateFormat('dd MMM').format(entry['date']), 
-                                style: const TextStyle(fontSize: 11, color: Colors.grey)
-                              ),
-                              const SizedBox(height: 2),
-                              Text(entry['title'], style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                              const SizedBox(height: 2),
-                              if (entry['subtitle'].toString().isNotEmpty)
-                                Text(entry['subtitle'], style: const TextStyle(fontSize: 11, color: Colors.white60)),
-                            ],
-                          ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              '${isPositive ? '+' : ''}₹${(entry['amount'] as double).abs().toStringAsFixed(0)}',
-                              style: TextStyle(color: isPositive ? Colors.greenAccent : Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 15),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                entry['status'],
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
+          const SizedBox(height: 16),
         ],
       ),
      ),
@@ -777,160 +618,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildCenterTransactions(BuildContext context, AccountingProvider provider) {
-    final centerExps = provider.expenses.where((e) => e.moneySource != MoneySource.PERSONAL).toList();
-    
-    // Helper to finding category name safely
-    String getCatName(String id) {
-      try { return provider.categories.firstWhere((c) => c.id == id).name; } catch (_) { return 'Uncategorized'; }
-    }
 
-    final all = [
-      ...centerExps.map((e) => {
-        'type': 'Expense', 
-        'item': e, 
-        'date': e.date,
-        'title': e.remarks,
-        'subtitle': getCatName(e.categoryId),
-        'amount': -e.amount,
-        'status': 'Debited',
-        'color': Colors.redAccent
-      }),
-      ...provider.donations.map((d) => {
-        'type': 'Donation', 
-        'item': d, 
-        'date': d.date,
-        'title': 'Donation Received',
-        'subtitle': d.remarks,
-        'amount': d.amount,
-        'status': 'Received',
-        'color': Colors.greenAccent
-      }),
-      ...provider.centerAdjustments.map((a) => {
-        'type': 'Adjustment', 
-        'item': a, 
-        'date': a.date,
-        'title': 'Budget Adjustment',
-        'subtitle': a.remarks,
-        'amount': a.type == AdjustmentType.CREDIT ? a.amount : -a.amount,
-        'status': a.type == AdjustmentType.CREDIT ? 'Credit' : 'Debit',
-        'color': a.type == AdjustmentType.CREDIT ? Colors.green : Colors.orange
-      }),
-      ...provider.transfers.where((t) => t.costCenterId == provider.activeCostCenterId).map((t) => {
-        'type': 'Transfer', 
-        'item': t, 
-        'date': t.date,
-        'title': 'Advance Taken',
-        'subtitle': t.remarks,
-        'amount': -t.amount,
-        'status': 'Advanced',
-        'color': Colors.blueAccent
-      }),
-    ]..sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
-
-    if (all.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 20),
-        child: Center(child: Text('No project-level activity yet.', style: TextStyle(color: Colors.grey, fontSize: 13))),
-      );
-    }
-
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: all.length.clamp(0, 10), // Show a bit more?
-      itemBuilder: (context, index) {
-        final entry = all[index];
-        final isPositive = (entry['amount'] as double) > 0;
-        final color = entry['color'] as Color;
-
-        return InkWell(
-          onTap: () => _showEntryDetails(context, entry['item'], entry['type'] as String),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CircleAvatar(
-                  backgroundColor: color.withOpacity(0.1),
-                  radius: 20,
-                  child: Icon(isPositive ? Icons.arrow_downward : Icons.arrow_upward, color: color, size: 18),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(DateFormat('dd MMM').format(entry['date'] as DateTime), style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                      const SizedBox(height: 2),
-                      Text(entry['title'] as String, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 2),
-                      Text(entry['subtitle'] as String, style: const TextStyle(fontSize: 11, color: Colors.white60)),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '${isPositive ? '+' : ''}₹${(entry['amount'] as double).abs().toStringAsFixed(0)}',
-                      style: TextStyle(color: isPositive ? Colors.greenAccent : Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: color.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        entry['status'] as String,
-                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.edit_note, size: 20, color: Colors.blueAccent),
-                  constraints: const BoxConstraints(),
-                  padding: EdgeInsets.all(4),
-                  onPressed: () {
-                    final type = entry['type'] as String;
-                    final item = entry['item'];
-                    if (type == 'Expense') {
-                      _showForm(context, AddExpenseScreen(expenseToEdit: item as Expense));
-                    } else if (type == 'Donation') {
-                      _showForm(context, AddDonationScreen(donationToEdit: item as Donation));
-                    } else if (type == 'Adjustment') {
-                      if (item is PersonalAdjustment) {
-                        _showForm(context, AddAdjustmentScreen(adjustmentToEdit: item));
-                      } else {
-                        _showForm(context, AddCenterAdjustmentScreen(adjustmentToEdit: item as CostCenterAdjustment));
-                      }
-                    } else if (type == 'Transfer') {
-                      _showForm(context, AddTransferScreen(transferToEdit: item as FundTransfer));
-                    }
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
 
   void _showEntryDetails(BuildContext context, dynamic item, String type) {
     final provider = Provider.of<AccountingProvider>(context, listen: false);
 
-    String? categoryName;
+    String getCatName(String? id) {
+      if (id == null) return 'General Wallet / Unallocated';
+      try {
+        final cat = provider.categories.firstWhere((c) => c.id == id);
+        return '${cat.category} -> ${cat.subCategory}';
+      } catch (_) {
+        return 'Unknown Category';
+      }
+    }
+
+    String? categoryLine;
+    List<Widget> extraDetails = [];
+
     if (item is Expense) {
-      final cat = provider.categories.where((c) => c.id == item.categoryId).toList();
-      if (cat.isNotEmpty) categoryName = cat.first.name;
+      categoryLine = getCatName(item.categoryId);
+      extraDetails = [
+        const SizedBox(height: 8),
+        Text('Money Source: ${item.moneySource.toString().split('.').last}', style: const TextStyle(fontSize: 15)),
+        const SizedBox(height: 4),
+        Text('Budget Type: ${item.budgetType.toString().split('.').last}', style: const TextStyle(fontSize: 15)),
+      ];
     } else if (item is Donation) {
-      final cat = provider.categories.where((c) => c.id == item.budgetCategoryId).toList();
-      if (cat.isNotEmpty) categoryName = cat.first.name;
+      categoryLine = getCatName(item.budgetCategoryId);
+      extraDetails = [
+        const SizedBox(height: 8),
+        Text('Mode: ${item.mode.toString().split('.').last}', style: const TextStyle(fontSize: 15)),
+      ];
+    } else if (item is FundTransfer) {
+      if (item.type == TransferType.CATEGORY_TO_CATEGORY) {
+        extraDetails = [
+          const SizedBox(height: 8),
+          const Text('TRANSFER PATH:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+          const SizedBox(height: 4),
+          Text('FROM: ${getCatName(item.fromCategoryId)}', style: const TextStyle(fontSize: 14)),
+          const SizedBox(height: 4),
+          const Icon(Icons.arrow_downward, size: 16, color: Colors.grey),
+          const SizedBox(height: 4),
+          Text('TO: ${getCatName(item.toCategoryId)}', style: const TextStyle(fontSize: 14)),
+        ];
+      } else {
+        extraDetails = [
+          const SizedBox(height: 8),
+          const Text('TYPE: Personal Advance', style: TextStyle(fontSize: 14, color: Colors.blueAccent)),
+        ];
+      }
     }
 
     String? costCenterName;
@@ -944,7 +681,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('$type Details'),
+        title: Text('${type == 'Internal Transfer' ? 'Fund Transfer' : type} Details'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -952,26 +689,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Text('Remarks: ${item.remarks}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const Divider(),
             const SizedBox(height: 8),
-            Text('Amount: ₹${item.amount}', style: const TextStyle(fontSize: 15)),
+            Text('Amount: ₹${item.amount}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
             const SizedBox(height: 4),
             Text('Date: ${DateFormat('yyyy-MM-dd').format(item.date)}', style: const TextStyle(fontSize: 15)),
-            if (categoryName != null) ...[
+            if (categoryLine != null) ...[
               const SizedBox(height: 4),
-              Text('Category: $categoryName', style: const TextStyle(fontSize: 15)),
+              Text('Category: $categoryLine', style: const TextStyle(fontSize: 15)),
             ],
             if (costCenterName != null) ...[
               const SizedBox(height: 4),
               Text('Cost Center: $costCenterName', style: const TextStyle(fontSize: 15)),
             ],
-            if (type == 'Expense') ...[
-              const SizedBox(height: 8),
-              Text('Source: ${item.moneySource.toString().split('.').last}', style: const TextStyle(fontSize: 15)),
-              const SizedBox(height: 4),
-              Text('Budget: ${item.budgetType.toString().split('.').last}', style: const TextStyle(fontSize: 15)),
-            ],
+            ...extraDetails,
             if (type == 'Adjustment') ...[
               const SizedBox(height: 8),
-              Text('Type: ${item.type.toString().split('.').last}', style: const TextStyle(fontSize: 15)),
+              Text('Adjustment Type: ${item.type.toString().split('.').last}', style: const TextStyle(fontSize: 15)),
               const SizedBox(height: 4),
               Text(item is PersonalAdjustment ? 'Personal Account' : 'Cost Center Budget', style: const TextStyle(color: Colors.grey, fontSize: 12)),
             ],

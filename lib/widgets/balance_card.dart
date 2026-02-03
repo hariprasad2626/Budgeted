@@ -6,6 +6,8 @@ class BalanceCard extends StatelessWidget {
   final double amount;
   final Color color;
   final VoidCallback? onTap;
+  final IconData? secondaryIcon;
+  final VoidCallback? onSecondaryTap;
 
   const BalanceCard({
     super.key,
@@ -13,6 +15,8 @@ class BalanceCard extends StatelessWidget {
     required this.amount,
     required this.color,
     this.onTap,
+    this.secondaryIcon,
+    this.onSecondaryTap,
   });
 
   @override
@@ -53,11 +57,20 @@ class BalanceCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (onTap != null)
-                    const Padding(
-                      padding: EdgeInsets.only(left: 8.0),
-                      child: Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white70),
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (secondaryIcon != null)
+                        IconButton(
+                          icon: Icon(secondaryIcon, size: 18, color: Colors.white70),
+                          onPressed: onSecondaryTap,
+                          constraints: const BoxConstraints(),
+                          padding: const EdgeInsets.only(right: 8),
+                        ),
+                      if (onTap != null)
+                        const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.white70),
+                    ],
+                  ),
                 ],
               ),
               const SizedBox(height: 8),

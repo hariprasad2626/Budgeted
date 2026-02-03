@@ -4,11 +4,13 @@ import 'package:provider/provider.dart';
 import '../providers/accounting_provider.dart';
 import 'package:uuid/uuid.dart';
 import '../models/fund_transfer.dart';
+import '../models/budget_category.dart';
 import '../services/firestore_service.dart';
 
 class AddTransferScreen extends StatefulWidget {
   final FundTransfer? transferToEdit;
-  const AddTransferScreen({super.key, this.transferToEdit});
+  final TransferType? initialType;
+  const AddTransferScreen({super.key, this.transferToEdit, this.initialType});
 
   @override
   State<AddTransferScreen> createState() => _AddTransferScreenState();
@@ -21,6 +23,15 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
   
   String? _selectedCostCenterId;
   DateTime _selectedDate = DateTime.now();
+  TransferType _type = TransferType.TO_PERSONAL;
+  
+  // Selection state for FROM
+  String? _fromCategoryName;
+  String? _fromCategoryId;
+  
+  // Selection state for TO
+  String? _toCategoryName;
+  String? _toCategoryId;
 
   @override
   void initState() {
@@ -31,7 +42,13 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
       _remarksController.text = t.remarks;
       _selectedCostCenterId = t.costCenterId;
       _selectedDate = t.date;
+      _type = t.type;
+      _fromCategoryId = t.fromCategoryId;
+      _toCategoryId = t.toCategoryId;
+      
+      // We'll resolve category names in build() or after first frame
     } else {
+      _type = widget.initialType ?? TransferType.TO_PERSONAL;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         final provider = Provider.of<AccountingProvider>(context, listen: false);
         setState(() {
@@ -44,7 +61,27 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<AccountingProvider>(context);
+    final allCats = provider.categories;
+
+    // Resolve initial names if editing
+    if (widget.transferToEdit != null) {
+      if (_fromCategoryId != null && _fromCategoryName == null) {
+        try {
+          _fromCategoryName = allCats.firstWhere((c) => c.id == _fromCategoryId).category;
+        } catch (_) {}
+      }
+      if (_toCategoryId != null && _toCategoryName == null) {
+        try {
+          _toCategoryName = allCats.firstWhere((c) => c.id == _toCategoryId).category;
+        } catch (_) {}
+      }
+    }
+
+    final parentCategories = allCats.map((c) => c.category).toSet().toList()..sort();
     
+    final fromSubCats = _fromCategoryName == null ? <BudgetCategory>[] : allCats.where((c) => c.category == _fromCategoryName).toList();
+    final toSubCats = _toCategoryName == null ? <BudgetCategory>[] : allCats.where((c) => c.category == _toCategoryName).toList();
+
     return Material(
       color: Colors.transparent,
       child: Column(
@@ -58,20 +95,106 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Move funds from Cost Center to Personal Account as an advance.',
-                      style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey, fontSize: 13),
+                    Text('TRANSFER TYPE', style: _labelStyle),
+                    const SizedBox(height: 8),
+                    SegmentedButton<TransferType>(
+                      segments: const [
+                        ButtonSegment(value: TransferType.TO_PERSONAL, label: Text('Advance'), icon: Icon(Icons.person)),
+                        ButtonSegment(value: TransferType.CATEGORY_TO_CATEGORY, label: Text('Internal'), icon: Icon(Icons.swap_horiz)),
+                      ],
+                      selected: {_type},
+                      onSelectionChanged: (val) => setState(() => _type = val.first),
                     ),
                     const SizedBox(height: 24),
-                    Text('SOURCE', style: _labelStyle),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      decoration: _inputDecoration('Source Cost Center'),
-                      value: _selectedCostCenterId,
-                      items: provider.costCenters.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
-                      onChanged: (val) => setState(() => _selectedCostCenterId = val),
-                      validator: (val) => val == null ? 'Required' : null,
-                    ),
+                    
+                    if (_type == TransferType.TO_PERSONAL) ...[
+                      Text('SOURCE COST CENTER', style: _labelStyle),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String?>(
+                        isExpanded: true,
+                        decoration: _inputDecoration('Select Center'),
+                        value: _selectedCostCenterId,
+                        items: provider.costCenters.map<DropdownMenuItem<String?>>((c) => DropdownMenuItem<String?>(value: c.id, child: Text(c.name, overflow: TextOverflow.ellipsis))).toList(),
+                        onChanged: (val) => setState(() => _selectedCostCenterId = val),
+                        validator: (val) => val == null ? 'Required' : null,
+                      ),
+                    ] else ...[
+                      // --- FROM SECTION ---
+                      Text('FROM (SOURCE)', style: _labelStyle),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String?>(
+                        isExpanded: true,
+                        decoration: _inputDecoration('Main Category / Wallet'),
+                        value: _fromCategoryName,
+                        items: [
+                          DropdownMenuItem<String?>(
+                            value: null, 
+                            child: Text('General Wallet / Unallocated (₹${provider.walletBalance.toStringAsFixed(0)})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent))
+                          ),
+                          ...parentCategories.map<DropdownMenuItem<String?>>((name) {
+                            double catTotal = allCats.where((c) => c.category == name).fold(0, (sum, c) => sum + provider.getCategoryStatus(c)['remaining']!);
+                            return DropdownMenuItem<String?>(value: name, child: Text('$name (₹${catTotal.toStringAsFixed(0)})'));
+                          }),
+                        ],
+                        onChanged: (val) => setState(() {
+                          _fromCategoryName = val;
+                          _fromCategoryId = null; // Reset sub-selection
+                        }),
+                      ),
+                      if (_fromCategoryName != null) ...[
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String?>(
+                          isExpanded: true,
+                          decoration: _inputDecoration('Sub Category'),
+                          value: fromSubCats.any((c) => c.id == _fromCategoryId) ? _fromCategoryId : null,
+                          items: fromSubCats.map<DropdownMenuItem<String?>>((c) {
+                            double rem = provider.getCategoryStatus(c)['remaining']!;
+                            return DropdownMenuItem<String?>(value: c.id, child: Text('${c.subCategory} (₹${rem.toStringAsFixed(0)})'));
+                          }).toList(),
+                          onChanged: (val) => setState(() => _fromCategoryId = val),
+                          validator: (val) => val == null ? 'Required' : null,
+                        ),
+                      ],
+                      
+                      const SizedBox(height: 24),
+                      // --- TO SECTION ---
+                      Text('TO (DESTINATION)', style: _labelStyle),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String?>(
+                        isExpanded: true,
+                        decoration: _inputDecoration('Main Category / Wallet'),
+                        value: _toCategoryName,
+                        items: [
+                          DropdownMenuItem<String?>(
+                            value: null, 
+                            child: Text('General Wallet / Unallocated (₹${provider.walletBalance.toStringAsFixed(0)})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent))
+                          ),
+                          ...parentCategories.map<DropdownMenuItem<String?>>((name) {
+                            double catTotal = allCats.where((c) => c.category == name).fold(0, (sum, c) => sum + provider.getCategoryStatus(c)['remaining']!);
+                            return DropdownMenuItem<String?>(value: name, child: Text('$name (₹${catTotal.toStringAsFixed(0)})'));
+                          }),
+                        ],
+                        onChanged: (val) => setState(() {
+                          _toCategoryName = val;
+                          _toCategoryId = null; // Reset sub-selection
+                        }),
+                      ),
+                      if (_toCategoryName != null) ...[
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String?>(
+                          isExpanded: true,
+                          decoration: _inputDecoration('Sub Category'),
+                          value: toSubCats.any((c) => c.id == _toCategoryId) ? _toCategoryId : null,
+                          items: toSubCats.map<DropdownMenuItem<String?>>((c) {
+                            double rem = provider.getCategoryStatus(c)['remaining']!;
+                            return DropdownMenuItem<String?>(value: c.id, child: Text('${c.subCategory} (₹${rem.toStringAsFixed(0)})'));
+                          }).toList(),
+                          onChanged: (val) => setState(() => _toCategoryId = val),
+                          validator: (val) => val == null ? 'Required' : null,
+                        ),
+                      ],
+                    ],
+                    
                     const SizedBox(height: 24),
                     Text('TRANSFER DETAILS', style: _labelStyle),
                     const SizedBox(height: 8),
@@ -109,7 +232,7 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
                       height: 55,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue.shade700,
+                          backgroundColor: _type == TransferType.TO_PERSONAL ? Colors.blue.shade700 : Colors.teal.shade700,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           elevation: 0,
@@ -143,7 +266,7 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            widget.transferToEdit == null ? 'ISKCON Transfer' : 'Edit Transfer',
+            widget.transferToEdit == null ? 'Fund Transfer' : 'Edit Transfer',
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
           ),
           IconButton(
@@ -158,7 +281,7 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
   TextStyle get _labelStyle => TextStyle(
     fontSize: 12, 
     fontWeight: FontWeight.bold, 
-    color: Colors.blue.shade700,
+    color: _type == TransferType.TO_PERSONAL ? Colors.blue.shade700 : Colors.teal.shade700,
     letterSpacing: 1.1,
   );
 
@@ -182,12 +305,23 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
   void _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Check circular or same source/dest
+    if (_type == TransferType.CATEGORY_TO_CATEGORY && _fromCategoryId == _toCategoryId && _fromCategoryName == _toCategoryName) {
+       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Source and Destination cannot be identical')));
+       return;
+    }
+
+    final provider = Provider.of<AccountingProvider>(context, listen: false);
+
     final transfer = FundTransfer(
       id: widget.transferToEdit?.id ?? const Uuid().v4(),
-      costCenterId: _selectedCostCenterId!,
+      costCenterId: _selectedCostCenterId ?? provider.activeCostCenterId ?? '',
       amount: double.parse(_amountController.text).abs(),
       date: _selectedDate,
       remarks: _remarksController.text,
+      type: _type,
+      fromCategoryId: _fromCategoryId,
+      toCategoryId: _toCategoryId,
     );
 
     if (widget.transferToEdit == null) {
