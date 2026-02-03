@@ -932,6 +932,12 @@ class _ActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // For light mode, make the color darker for better contrast against white background
+    final contrastColor = isDark 
+        ? color 
+        : HSLColor.fromColor(color).withLightness(0.4).toColor();
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -944,14 +950,22 @@ class _ActionCard extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color, size: 22),
+            Icon(icon, color: contrastColor, size: 22),
             const SizedBox(height: 6),
             Text(
               label,
               style: TextStyle(
-                color: color.withOpacity(0.8),
+                color: contrastColor.withOpacity(0.8), // Use the high-contrast color
                 fontWeight: FontWeight.bold,
-                fontSize: 10,
+                fontSize: 12, // Ensure font size is consistent
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }                fontSize: 10,
               ),
             ),
           ],
