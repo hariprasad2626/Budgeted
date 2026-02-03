@@ -175,7 +175,9 @@ class AccountingProvider with ChangeNotifier {
 
   double get personalBalance {
     // Total money received from generic ISKCON transfers
-    double totalTransfers = _transfers.fold(0, (sum, item) => sum + item.amount);
+    double totalTransfers = _transfers
+        .where((t) => t.type == TransferType.TO_PERSONAL)
+        .fold(0, (sum, item) => sum + item.amount);
     
     // Expenses paid specifically from Personal Account
     double personalExpenses = _allExpenses

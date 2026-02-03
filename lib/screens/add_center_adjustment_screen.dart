@@ -45,107 +45,105 @@ class _AddCenterAdjustmentScreenState extends State<AddCenterAdjustmentScreen> {
     final provider = Provider.of<AccountingProvider>(context);
     final categories = provider.categories;
 
-    return Material(
-      color: Colors.transparent,
-      child: Column(
-        children: [
-          _buildHeader(context),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('TARGET CATEGORY', style: _labelStyle),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      decoration: _inputDecoration('Select Category'),
-                      value: categories.any((c) => c.id == _selectedCategoryId) ? _selectedCategoryId : null,
-                      items: categories.map((c) => DropdownMenuItem(
-                        value: c.id, 
-                        child: Text(
-                          '${c.category} - ${c.subCategory} (${c.budgetType.toString().split('.').last})',
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                        )
-                      )).toList(),
-                      onChanged: (val) {
-                        setState(() {
-                          _selectedCategoryId = val;
-                          if (val != null) {
-                            _derivedBudgetType = provider.getBudgetTypeForCategory(val);
-                          }
-                        });
-                      },
-                      validator: (val) => val == null ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    Text('ADJUSTMENT TYPE', style: _labelStyle),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<AdjustmentType>(
-                      decoration: _inputDecoration('Type'),
-                      value: _type,
-                      items: AdjustmentType.values.map((t) => DropdownMenuItem(value: t, child: Text(t.toString().split('.').last))).toList(),
-                      onChanged: (val) => setState(() => _type = val!),
-                    ),
-                    const SizedBox(height: 24),
-                    Text('DETAILS', style: _labelStyle),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _amountController,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                      decoration: _inputDecoration('Amount').copyWith(prefixText: '₹ '),
-                      keyboardType: TextInputType.number,
-                      validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    InkWell(
-                      onTap: _pickDate,
-                      child: InputDecorator(
-                        decoration: _inputDecoration('Date'),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(DateFormat('MMMM dd, yyyy').format(_selectedDate)),
-                            const Icon(Icons.calendar_today, size: 18),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _remarksController,
-                      decoration: _inputDecoration('Remarks / Descr.'),
-                      maxLines: 2,
-                      validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 40),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange.shade800,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 0,
-                        ),
-                        onPressed: _submit,
-                        child: Text(
-                          widget.adjustmentToEdit == null ? 'SAVE CENTER ADJUSTMENT' : 'UPDATE ADJUSTMENT',
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                        ),
-                      ),
-                    ),
-                  ],
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.adjustmentToEdit == null ? 'Cost Center Adjustment' : 'Edit Adjustment'),
+        backgroundColor: Colors.orange.shade800,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('TARGET CATEGORY', style: _labelStyle),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                decoration: _inputDecoration('Select Category'),
+                value: categories.any((c) => c.id == _selectedCategoryId) ? _selectedCategoryId : null,
+                items: categories.map((c) => DropdownMenuItem(
+                  value: c.id, 
+                  child: Text(
+                    '${c.category} - ${c.subCategory} (${c.budgetType.toString().split('.').last})',
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  )
+                )).toList(),
+                onChanged: (val) {
+                  setState(() {
+                    _selectedCategoryId = val;
+                    if (val != null) {
+                      _derivedBudgetType = provider.getBudgetTypeForCategory(val);
+                    }
+                  });
+                },
+                validator: (val) => val == null ? 'Required' : null,
+              ),
+              const SizedBox(height: 16),
+              Text('ADJUSTMENT TYPE', style: _labelStyle),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<AdjustmentType>(
+                decoration: _inputDecoration('Type'),
+                value: _type,
+                items: AdjustmentType.values.map((t) => DropdownMenuItem(value: t, child: Text(t.toString().split('.').last))).toList(),
+                onChanged: (val) => setState(() => _type = val!),
+              ),
+              const SizedBox(height: 24),
+              Text('DETAILS', style: _labelStyle),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _amountController,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                decoration: _inputDecoration('Amount').copyWith(prefixText: '₹ '),
+                keyboardType: TextInputType.number,
+                validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 16),
+              InkWell(
+                onTap: _pickDate,
+                child: InputDecorator(
+                  decoration: _inputDecoration('Date'),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(DateFormat('MMMM dd, yyyy').format(_selectedDate)),
+                      const Icon(Icons.calendar_today, size: 18),
+                    ],
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _remarksController,
+                decoration: _inputDecoration('Remarks / Descr.'),
+                maxLines: 2,
+                validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange.shade800,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  onPressed: _submit,
+                  child: Text(
+                    widget.adjustmentToEdit == null ? 'SAVE CENTER ADJUSTMENT' : 'UPDATE ADJUSTMENT',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                  ),
+                ),
+              ),
+              // Add extra padding at the bottom to ensure the last field is scrollable above the keyboard
+              SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 40),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -15,6 +15,7 @@ import 'add_adjustment_screen.dart';
 import 'add_center_adjustment_screen.dart';
 import 'add_transfer_screen.dart';
 import '../models/cost_center_adjustment.dart';
+import 'transaction_history_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -269,49 +270,105 @@ class _DashboardScreenState extends State<DashboardScreen> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 12),
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3,
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 1.3,
+          Column(
             children: [
-              _ActionCard(
-                icon: Icons.payment,
-                color: Colors.redAccent,
-                label: 'Spend',
-                onTap: () => _showHistoryPopup(context, 'Direct Spend History', provider.expenses.where((e) => e.moneySource != MoneySource.PERSONAL).toList(), 'Expense', const AddExpenseScreen()),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 80,
+                      child: _ActionCard(
+                        icon: Icons.payment,
+                        color: Colors.redAccent,
+                        label: 'Spend',
+                        onTap: () => _showHistoryPopup(context, 'Direct Spend History', provider.expenses.where((e) => e.moneySource != MoneySource.PERSONAL).toList(), 'Expense', const AddExpenseScreen()),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 80,
+                      child: _ActionCard(
+                        icon: Icons.volunteer_activism,
+                        color: Colors.greenAccent,
+                        label: 'Donation',
+                        onTap: () => _showHistoryPopup(context, 'Donation History', provider.donations, 'Donation', const AddDonationScreen()),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              _ActionCard(
-                icon: Icons.volunteer_activism,
-                color: Colors.greenAccent,
-                label: 'Donation',
-                onTap: () => _showHistoryPopup(context, 'Donation History', provider.donations, 'Donation', const AddDonationScreen()),
+              const SizedBox(height: 12),
+
+              // Row 2: Advance & Internal Transfer
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 70,
+                      child: _ActionCard(
+                        icon: Icons.person_add_alt_1, // Changed icon to indicate personal
+                        color: Colors.blueAccent,
+                        label: 'Advance (Per)',
+                        onTap: () => _showHistoryPopup(
+                            context, 
+                            'Personal Advance History', 
+                            provider.transfers.where((t) => t.costCenterId == activeCenter.id && t.type == TransferType.TO_PERSONAL && t.fromCategoryId == null && t.toCategoryId == null).toList(), 
+                            'Transfer', 
+                            const AddTransferScreen(initialType: TransferType.TO_PERSONAL)
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SizedBox(
+                      height: 70,
+                      child: _ActionCard(
+                        icon: Icons.sync_alt,
+                        color: Colors.orangeAccent,
+                        label: 'Inter-Transfer',
+                        onTap: () => _showHistoryPopup(
+                            context,
+                            'Internal Transfer History', 
+                            provider.transfers.where((t) => t.costCenterId == activeCenter.id && t.type == TransferType.CATEGORY_TO_CATEGORY).toList(), 
+                            'Internal Transfer', // Changed type string to distinguish in popup
+                            const AddTransferScreen(initialType: TransferType.CATEGORY_TO_CATEGORY)
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-               _ActionCard(
-                icon: Icons.swap_horiz,
-                color: Colors.blueAccent,
-                label: 'Advance',
-                onTap: () => _showHistoryPopup(context, 'Advance History', provider.transfers.where((t) => t.costCenterId == activeCenter.id).toList(), 'Transfer', const AddTransferScreen()),
-              ),
-              _ActionCard(
-                icon: Icons.settings,
-                color: Colors.purpleAccent,
-                label: 'Categories',
-                onTap: () => Navigator.pushNamed(context, '/manage-categories'),
-              ),
-              _ActionCard(
-                icon: Icons.list_alt,
-                color: Colors.amberAccent,
-                label: 'Allocations',
-                onTap: () => Navigator.pushNamed(context, '/manage-allocations'),
-              ),
-              _ActionCard(
-                icon: Icons.bar_chart,
-                color: Colors.pinkAccent,
-                label: 'Reports',
-                onTap: () => Navigator.pushNamed(context, '/reports'),
+              const SizedBox(height: 12),
+              // Row 3: Categories & Reports
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 70,
+                      child: _ActionCard(
+                        icon: Icons.settings,
+                        color: Colors.purpleAccent,
+                        label: 'Categories',
+                        onTap: () => Navigator.pushNamed(context, '/manage-categories'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SizedBox(
+                      height: 70,
+                      child: _ActionCard(
+                        icon: Icons.bar_chart,
+                        color: Colors.pinkAccent,
+                        label: 'Reports',
+                        onTap: () => Navigator.pushNamed(context, '/reports'),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -427,9 +484,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 onTap: () => _showHistoryPopup(
                   context, 
                   'Advance Received History', 
-                  provider.transfers.where((t) => t.costCenterId == provider.activeCostCenterId).toList(), 
+                  provider.transfers.where((t) => t.costCenterId == provider.activeCostCenterId && t.type == TransferType.TO_PERSONAL && t.fromCategoryId == null && t.toCategoryId == null).toList(), 
                   'Transfer', 
-                  const AddTransferScreen()
+                  const AddTransferScreen(initialType: TransferType.TO_PERSONAL)
                 ),
               ),
               _ActionCard(
@@ -535,90 +592,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _showForm(BuildContext context, Widget screen) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.85,
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: screen,
-      ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => screen),
     );
   }
 
   void _showHistoryPopup(BuildContext context, String title, List<dynamic> items, String type, Widget addScreen) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.75,
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              Container(
-                width: 40, height: 4, margin: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    IconButton(
-                      icon: const Icon(Icons.add_circle, color: Colors.tealAccent, size: 28),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showForm(context, addScreen);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(),
-              Expanded(
-                child: items.isEmpty
-                    ? const Center(child: Text('No entries found.'))
-                    : () {
-                        final sortedItems = List.from(items)..sort((a, b) => (b.date as DateTime).compareTo(a.date as DateTime));
-                        return ListView.builder(
-                          padding: const EdgeInsets.all(8),
-                          itemCount: sortedItems.length,
-                          itemBuilder: (context, index) {
-                            final item = sortedItems[index];
-                            return ListTile(
-                            title: Text(item.remarks),
-                            subtitle: Text(DateFormat('MMM dd, yyyy').format(item.date)),
-                            trailing: Text(
-                              '₹${item.amount}', 
-                              style: const TextStyle(fontWeight: FontWeight.bold)
-                            ),
-                            onTap: () {
-                              Navigator.pop(context);
-                              _showEntryDetails(context, item, type == 'PersonalAdjustment' ? 'Adjustment' : type);
-                            },
-                          );
-                        },
-                      );
-                    }(),
-              ),
-            ],
-          ),
-        );
-      },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TransactionHistoryScreen(
+          title: title,
+          items: items,
+          type: type,
+          addScreen: addScreen,
+          showEntryDetails: _showEntryDetails,
+        ),
+      ),
     );
   }
-
-
 
   void _showEntryDetails(BuildContext context, dynamic item, String type) {
     final provider = Provider.of<AccountingProvider>(context, listen: false);

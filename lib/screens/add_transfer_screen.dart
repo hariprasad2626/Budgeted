@@ -82,175 +82,164 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
     final fromSubCats = _fromCategoryName == null ? <BudgetCategory>[] : allCats.where((c) => c.category == _fromCategoryName).toList();
     final toSubCats = _toCategoryName == null ? <BudgetCategory>[] : allCats.where((c) => c.category == _toCategoryName).toList();
 
-    return Material(
-      color: Colors.transparent,
-      child: Column(
-        children: [
-          _buildHeader(context),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('TRANSFER TYPE', style: _labelStyle),
-                    const SizedBox(height: 8),
-                    SegmentedButton<TransferType>(
-                      segments: const [
-                        ButtonSegment(value: TransferType.TO_PERSONAL, label: Text('Advance'), icon: Icon(Icons.person)),
-                        ButtonSegment(value: TransferType.CATEGORY_TO_CATEGORY, label: Text('Internal'), icon: Icon(Icons.swap_horiz)),
-                      ],
-                      selected: {_type},
-                      onSelectionChanged: (val) => setState(() => _type = val.first),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.transferToEdit == null ? 'Fund Transfer' : 'Edit Transfer'),
+        backgroundColor: Colors.teal.shade800,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (_type == TransferType.TO_PERSONAL) ...[
+                Text('RECORD ADVANCE', style: _labelStyle),
+                const SizedBox(height: 16),
+                Text('SOURCE COST CENTER', style: _labelStyle),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String?>(
+                  isExpanded: true,
+                  decoration: _inputDecoration('Select Center'),
+                  value: _selectedCostCenterId,
+                  items: provider.costCenters.map<DropdownMenuItem<String?>>((c) => DropdownMenuItem<String?>(value: c.id, child: Text(c.name, overflow: TextOverflow.ellipsis))).toList(),
+                  onChanged: (val) => setState(() => _selectedCostCenterId = val),
+                  validator: (val) => val == null ? 'Required' : null,
+                ),
+              ] else ...[
+                 Text('INTERNAL TRANSFER', style: _labelStyle),
+                 const SizedBox(height: 16),
+                // --- FROM SECTION ---
+                Text('FROM (SOURCE)', style: _labelStyle),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String?>(
+                  isExpanded: true,
+                  decoration: _inputDecoration('Main Category / Wallet'),
+                  value: _fromCategoryName,
+                  items: [
+                    DropdownMenuItem<String?>(
+                      value: null, 
+                      child: Text('General Wallet / Unallocated (₹${provider.walletBalance.toStringAsFixed(0)})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent))
                     ),
-                    const SizedBox(height: 24),
-                    
-                    if (_type == TransferType.TO_PERSONAL) ...[
-                      Text('SOURCE COST CENTER', style: _labelStyle),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String?>(
-                        isExpanded: true,
-                        decoration: _inputDecoration('Select Center'),
-                        value: _selectedCostCenterId,
-                        items: provider.costCenters.map<DropdownMenuItem<String?>>((c) => DropdownMenuItem<String?>(value: c.id, child: Text(c.name, overflow: TextOverflow.ellipsis))).toList(),
-                        onChanged: (val) => setState(() => _selectedCostCenterId = val),
-                        validator: (val) => val == null ? 'Required' : null,
-                      ),
-                    ] else ...[
-                      // --- FROM SECTION ---
-                      Text('FROM (SOURCE)', style: _labelStyle),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String?>(
-                        isExpanded: true,
-                        decoration: _inputDecoration('Main Category / Wallet'),
-                        value: _fromCategoryName,
-                        items: [
-                          DropdownMenuItem<String?>(
-                            value: null, 
-                            child: Text('General Wallet / Unallocated (₹${provider.walletBalance.toStringAsFixed(0)})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent))
-                          ),
-                          ...parentCategories.map<DropdownMenuItem<String?>>((name) {
-                            double catTotal = allCats.where((c) => c.category == name).fold(0, (sum, c) => sum + provider.getCategoryStatus(c)['remaining']!);
-                            return DropdownMenuItem<String?>(value: name, child: Text('$name (₹${catTotal.toStringAsFixed(0)})'));
-                          }),
-                        ],
-                        onChanged: (val) => setState(() {
-                          _fromCategoryName = val;
-                          _fromCategoryId = null; // Reset sub-selection
-                        }),
-                      ),
-                      if (_fromCategoryName != null) ...[
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String?>(
-                          isExpanded: true,
-                          decoration: _inputDecoration('Sub Category'),
-                          value: fromSubCats.any((c) => c.id == _fromCategoryId) ? _fromCategoryId : null,
-                          items: fromSubCats.map<DropdownMenuItem<String?>>((c) {
-                            double rem = provider.getCategoryStatus(c)['remaining']!;
-                            return DropdownMenuItem<String?>(value: c.id, child: Text('${c.subCategory} (₹${rem.toStringAsFixed(0)})'));
-                          }).toList(),
-                          onChanged: (val) => setState(() => _fromCategoryId = val),
-                          validator: (val) => val == null ? 'Required' : null,
-                        ),
-                      ],
-                      
-                      const SizedBox(height: 24),
-                      // --- TO SECTION ---
-                      Text('TO (DESTINATION)', style: _labelStyle),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String?>(
-                        isExpanded: true,
-                        decoration: _inputDecoration('Main Category / Wallet'),
-                        value: _toCategoryName,
-                        items: [
-                          DropdownMenuItem<String?>(
-                            value: null, 
-                            child: Text('General Wallet / Unallocated (₹${provider.walletBalance.toStringAsFixed(0)})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent))
-                          ),
-                          ...parentCategories.map<DropdownMenuItem<String?>>((name) {
-                            double catTotal = allCats.where((c) => c.category == name).fold(0, (sum, c) => sum + provider.getCategoryStatus(c)['remaining']!);
-                            return DropdownMenuItem<String?>(value: name, child: Text('$name (₹${catTotal.toStringAsFixed(0)})'));
-                          }),
-                        ],
-                        onChanged: (val) => setState(() {
-                          _toCategoryName = val;
-                          _toCategoryId = null; // Reset sub-selection
-                        }),
-                      ),
-                      if (_toCategoryName != null) ...[
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String?>(
-                          isExpanded: true,
-                          decoration: _inputDecoration('Sub Category'),
-                          value: toSubCats.any((c) => c.id == _toCategoryId) ? _toCategoryId : null,
-                          items: toSubCats.map<DropdownMenuItem<String?>>((c) {
-                            double rem = provider.getCategoryStatus(c)['remaining']!;
-                            return DropdownMenuItem<String?>(value: c.id, child: Text('${c.subCategory} (₹${rem.toStringAsFixed(0)})'));
-                          }).toList(),
-                          onChanged: (val) => setState(() => _toCategoryId = val),
-                          validator: (val) => val == null ? 'Required' : null,
-                        ),
-                      ],
-                    ],
-                    
-                    const SizedBox(height: 24),
-                    Text('TRANSFER DETAILS', style: _labelStyle),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _amountController,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                      decoration: _inputDecoration('Amount').copyWith(prefixText: '₹ '),
-                      keyboardType: TextInputType.number,
-                      validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    InkWell(
-                      onTap: _pickDate,
-                      child: InputDecorator(
-                        decoration: _inputDecoration('Date'),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(DateFormat('MMMM dd, yyyy').format(_selectedDate)),
-                            const Icon(Icons.calendar_today, size: 18),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _remarksController,
-                      decoration: _inputDecoration('Remarks / Transfer Note'),
-                      maxLines: 2,
-                      validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 40),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _type == TransferType.TO_PERSONAL ? Colors.blue.shade700 : Colors.teal.shade700,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 0,
-                        ),
-                        onPressed: _submit,
-                        child: Text(
-                          widget.transferToEdit == null ? 'RECORD TRANSFER' : 'UPDATE TRANSFER',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
+                    ...parentCategories.map<DropdownMenuItem<String?>>((name) {
+                      double catTotal = allCats.where((c) => c.category == name).fold(0, (sum, c) => sum + provider.getCategoryStatus(c)['remaining']!);
+                      return DropdownMenuItem<String?>(value: name, child: Text('$name (₹${catTotal.toStringAsFixed(0)})'));
+                    }),
                   ],
+                  onChanged: (val) => setState(() {
+                    _fromCategoryName = val;
+                    _fromCategoryId = null; // Reset sub-selection
+                  }),
+                ),
+                if (_fromCategoryName != null) ...[
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String?>(
+                    isExpanded: true,
+                    decoration: _inputDecoration('Sub Category'),
+                    value: fromSubCats.any((c) => c.id == _fromCategoryId) ? _fromCategoryId : null,
+                    items: fromSubCats.map<DropdownMenuItem<String?>>((c) {
+                      double rem = provider.getCategoryStatus(c)['remaining']!;
+                      return DropdownMenuItem<String?>(value: c.id, child: Text('${c.subCategory} (₹${rem.toStringAsFixed(0)})'));
+                    }).toList(),
+                    onChanged: (val) => setState(() => _fromCategoryId = val),
+                    validator: (val) => val == null ? 'Required' : null,
+                  ),
+                ],
+                
+                const SizedBox(height: 24),
+                // --- TO SECTION ---
+                Text('TO (DESTINATION)', style: _labelStyle),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String?>(
+                  isExpanded: true,
+                  decoration: _inputDecoration('Main Category / Wallet'),
+                  value: _toCategoryName,
+                  items: [
+                    DropdownMenuItem<String?>(
+                      value: null, 
+                      child: Text('General Wallet / Unallocated (₹${provider.walletBalance.toStringAsFixed(0)})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent))
+                    ),
+                    ...parentCategories.map<DropdownMenuItem<String?>>((name) {
+                      double catTotal = allCats.where((c) => c.category == name).fold(0, (sum, c) => sum + provider.getCategoryStatus(c)['remaining']!);
+                      return DropdownMenuItem<String?>(value: name, child: Text('$name (₹${catTotal.toStringAsFixed(0)})'));
+                    }),
+                  ],
+                  onChanged: (val) => setState(() {
+                    _toCategoryName = val;
+                    _toCategoryId = null; // Reset sub-selection
+                  }),
+                ),
+                if (_toCategoryName != null) ...[
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String?>(
+                    isExpanded: true,
+                    decoration: _inputDecoration('Sub Category'),
+                    value: toSubCats.any((c) => c.id == _toCategoryId) ? _toCategoryId : null,
+                    items: toSubCats.map<DropdownMenuItem<String?>>((c) {
+                      double rem = provider.getCategoryStatus(c)['remaining']!;
+                      return DropdownMenuItem<String?>(value: c.id, child: Text('${c.subCategory} (₹${rem.toStringAsFixed(0)})'));
+                    }).toList(),
+                    onChanged: (val) => setState(() => _toCategoryId = val),
+                    validator: (val) => val == null ? 'Required' : null,
+                  ),
+                ],
+              ],
+              
+              const SizedBox(height: 24),
+              Text('TRANSFER DETAILS', style: _labelStyle),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _amountController,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                decoration: _inputDecoration('Amount').copyWith(prefixText: '₹ '),
+                keyboardType: TextInputType.number,
+                validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 16),
+              InkWell(
+                onTap: _pickDate,
+                child: InputDecorator(
+                  decoration: _inputDecoration('Date'),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(DateFormat('MMMM dd, yyyy').format(_selectedDate)),
+                      const Icon(Icons.calendar_today, size: 18),
+                    ],
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _remarksController,
+                decoration: _inputDecoration('Remarks / Transfer Note'),
+                maxLines: 2,
+                validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _type == TransferType.TO_PERSONAL ? Colors.blue.shade700 : Colors.teal.shade700,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  onPressed: _submit,
+                  child: Text(
+                    widget.transferToEdit == null ? 'RECORD TRANSFER' : 'UPDATE TRANSFER',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                  ),
+                ),
+              ),
+              // Add extra padding at the bottom to ensure the last field is scrollable above the keyboard
+              SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 40),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

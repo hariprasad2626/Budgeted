@@ -13,10 +13,19 @@ import 'add_donation_screen.dart';
 import 'add_adjustment_screen.dart';
 import 'add_center_adjustment_screen.dart';
 import 'add_transfer_screen.dart';
+import 'transaction_history_screen.dart';
 import '../models/cost_center_adjustment.dart';
 
-class LedgerScreen extends StatelessWidget {
+class LedgerScreen extends StatefulWidget {
   const LedgerScreen({super.key});
+
+  @override
+  State<LedgerScreen> createState() => _LedgerScreenState();
+}
+
+class _LedgerScreenState extends State<LedgerScreen> {
+  String _searchQuery = '';
+  DateTimeRange? _selectedDateRange;
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +73,7 @@ class LedgerScreen extends StatelessWidget {
                       'budgetType': filterMode == 'WALLET' ? 'WALLET' : 'OTE',
                       'status': 'Allocated',
                       'statusColor': Colors.teal,
+                      'categoryPath': 'System Allocation',
                   });
               }
 
@@ -89,6 +99,7 @@ class LedgerScreen extends StatelessWidget {
                          'budgetType': filterMode == 'WALLET' ? 'WALLET' : 'PME',
                          'status': 'Recurring',
                          'statusColor': Colors.purple,
+                         'categoryPath': 'System Allocation',
                       });
                       current = DateTime(current.year, current.month + 1, 1);
                  }
@@ -301,6 +312,23 @@ class LedgerScreen extends StatelessWidget {
            allEntries = allEntries.where((e) => e['type'] != 'Settlement').toList();
         }
 
+        // Apply Search and Date Filters
+        if (_searchQuery.isNotEmpty) {
+          allEntries = allEntries.where((e) {
+            final titleMatch = (e['title'] as String).toLowerCase().contains(_searchQuery.toLowerCase());
+            final catMatch = (e['categoryPath'] as String? ?? '').toLowerCase().contains(_searchQuery.toLowerCase());
+            return titleMatch || catMatch;
+          }).toList();
+        }
+
+        if (_selectedDateRange != null) {
+          allEntries = allEntries.where((e) {
+            final date = e['date'] as DateTime;
+            return date.isAfter(_selectedDateRange!.start.subtract(const Duration(days: 1))) && 
+                   date.isBefore(_selectedDateRange!.end.add(const Duration(days: 1)));
+          }).toList();
+        }
+
         // Sort by date descending
         allEntries.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
 
@@ -328,34 +356,68 @@ class LedgerScreen extends StatelessWidget {
                   ],
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Text('Center Quick Actions', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey)),
-              ),
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                crossAxisCount: 2,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-                childAspectRatio: 1.6,
-                children: [
-                   _ActionCard(
-                    icon: Icons.payment,
-                    color: Colors.redAccent,
-                    label: 'Spend',
-                    onTap: () {
-                       _showHistoryPopup(context, 'Direct Spend History', provider.expenses.where((e) => e.moneySource != MoneySource.PERSONAL).toList(), 'Expense', const AddExpenseScreen());
-                    },
-                  ),
-                  _ActionCard(
-                    icon: Icons.volunteer_activism,
-                    color: Colors.greenAccent,
-                    label: 'Donation',
-                    onTap: () => _showHistoryPopup(context, 'Donation History', provider.donations, 'Donation', const AddDonationScreen()),
-                  ),
-                ],
+              // Search and Filter Bar
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        onChanged: (value) {
+                          setState(() {
+                            _searchQuery = value;
+                          });
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Search ledger...',
+                          prefixIcon: const Icon(Icons.search, size: 20),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(30),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Colors.white.withOpacity(0.05),
+                        ),
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () async {
+                        final picked = await showDateRangePicker(
+                          context: context,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2030),
+                          initialDateRange: _selectedDateRange,
+                        );
+                        if (picked != null) {
+                          setState(() {
+                            _selectedDateRange = picked;
+                          });
+                        }
+                      },
+                      icon: Icon(
+                        Icons.calendar_today, 
+                        size: 20,
+                        color: _selectedDateRange != null ? Colors.amberAccent : Colors.white,
+                      ),
+                      style: IconButton.styleFrom(
+                        backgroundColor: _selectedDateRange != null ? Colors.amber.withOpacity(0.2) : Colors.white.withOpacity(0.05),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                    if (_selectedDateRange != null)
+                      IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _selectedDateRange = null;
+                          });
+                        },
+                        icon: const Icon(Icons.close, size: 20),
+                      ),
+                  ],
+                ),
               ),
               const Divider(height: 32),
               Expanded(
@@ -382,26 +444,40 @@ class LedgerScreen extends StatelessWidget {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              CircleAvatar(
-                                backgroundColor: color.withOpacity(0.1),
-                                radius: 20,
-                                child: Icon(isPositive ? Icons.arrow_downward : Icons.arrow_upward, color: color, size: 18),
+                              // Icon Circle
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: color.withOpacity(0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  isPositive ? Icons.arrow_downward : Icons.arrow_upward,
+                                  color: color,
+                                  size: 20,
+                                ),
                               ),
-                              const SizedBox(width: 12),
+                              const SizedBox(width: 16),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(DateFormat('dd MMM').format(date), style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                                    const SizedBox(height: 2),
-                                    Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                                    const SizedBox(height: 2),
                                     Text(
-                                      entry.containsKey('categoryPath') 
-                                        ? entry['categoryPath'] 
-                                        : '$type • $source', 
-                                      style: const TextStyle(fontSize: 11, color: Colors.white60),
+                                      DateFormat('MMM dd, yyyy').format(date),
+                                      style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      title,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                      maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      entry.containsKey('categoryPath') ? entry['categoryPath'] : '$type • $source',
+                                      style: const TextStyle(color: Colors.white60, fontSize: 12),
                                     ),
                                   ],
                                 ),
@@ -410,21 +486,28 @@ class LedgerScreen extends StatelessWidget {
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
                                   Text(
-                                    '${isPositive ? '+' : ''}₹${(entry['amount'] as double).abs().toStringAsFixed(0)}',
-                                    style: TextStyle(color: isPositive ? Colors.greenAccent : Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 15),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: statusColor.withOpacity(0.15),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      status,
-                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor),
+                                    '${isPositive ? "+" : "-"}₹${(entry['amount'] as double).abs().toStringAsFixed(0)}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                      color: isPositive ? Colors.greenAccent : Colors.redAccent,
                                     ),
                                   ),
+                                  if (status.isNotEmpty && status != 'N/A')
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 4),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: statusColor.withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                        child: Text(
+                                          status,
+                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor),
+                                        ),
+                                      ),
+                                    ),
                                 ],
                               ),
 
@@ -486,17 +569,23 @@ class LedgerScreen extends StatelessWidget {
   }
 
   void _showForm(BuildContext context, Widget screen) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.85,
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => screen),
+    );
+  }
+
+  void _showHistoryPopup(BuildContext context, String title, List<dynamic> items, String type, Widget addScreen) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TransactionHistoryScreen(
+          title: title,
+          items: items,
+          type: type,
+          addScreen: addScreen,
+          showEntryDetails: _showEntryDetails,
         ),
-        child: screen,
       ),
     );
   }
@@ -646,73 +735,6 @@ class LedgerScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-  void _showHistoryPopup(BuildContext context, String title, List<dynamic> items, String type, Widget addScreen) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.75,
-          decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              Container(
-                width: 40, height: 4, margin: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    IconButton(
-                      icon: const Icon(Icons.add_circle, color: Colors.tealAccent, size: 28),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        _showForm(context, addScreen);
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(),
-              Expanded(
-                child: items.isEmpty
-                    ? const Center(child: Text('No entries found.'))
-                    : () {
-                        final sortedItems = List.from(items)..sort((a, b) => (b.date as DateTime).compareTo(a.date as DateTime));
-                        return ListView.builder(
-                          padding: const EdgeInsets.all(8),
-                          itemCount: sortedItems.length,
-                          itemBuilder: (context, index) {
-                            final item = sortedItems[index];
-                            return ListTile(
-                            title: Text(item.remarks),
-                            subtitle: Text(DateFormat('MMM dd, yyyy').format(item.date)),
-                            trailing: Text(
-                              '₹${item.amount}', 
-                              style: const TextStyle(fontWeight: FontWeight.bold)
-                            ),
-                            onTap: () {
-                              Navigator.pop(context);
-                              _showEntryDetails(context, item, type == 'PersonalAdjustment' ? 'Adjustment' : type);
-                            },
-                          );
-                        },
-                      );
-                    }(),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }

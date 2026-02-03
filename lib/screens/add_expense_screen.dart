@@ -61,140 +61,137 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       (c.isActive || c.id == _selectedCategoryId)
     ).toList();
 
-    return Material(
-      color: Colors.transparent,
-      child: Column(
-        children: [
-          _buildHeader(context),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (widget.defaultSource != null)
-                      InputDecorator(
-                        decoration: _inputDecoration('Money Source'),
-                        child: Text(
-                          _getMoneySourceLabel(widget.defaultSource!),
-                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
-                        ),
-                      )
-                    else
-                      DropdownButtonFormField<MoneySource>(
-                        isExpanded: true,
-                        decoration: _inputDecoration('Money Source'),
-                        value: _moneySource,
-                        items: MoneySource.values.where((s) => s != MoneySource.PERSONAL).map((s) {
-                          String balanceStr = '';
-                          if (s == MoneySource.WALLET) balanceStr = ' (₹${provider.walletBalance.toStringAsFixed(0)})';
-                          return DropdownMenuItem(
-                            value: s, 
-                            child: Text(_getMoneySourceLabel(s) + balanceStr),
-                          );
-                        }).toList(),
-                        onChanged: (val) => setState(() => _moneySource = val!),
-                      ),
-                    if (_moneySource == MoneySource.ISKCON) ...[
-                      const SizedBox(height: 24),
-                      Text('CATEGORY', style: _labelStyle),
-                      const SizedBox(height: 8),
-                      DropdownButtonFormField<String?>(
-                        isExpanded: true,
-                        decoration: _inputDecoration('Main Category'),
-                        value: parentCategories.contains(_selectedCategoryName) ? _selectedCategoryName : null,
-                        items: parentCategories.map<DropdownMenuItem<String?>>((name) {
-                          double catTotal = allCats.where((c) => c.category == name).fold(0, (sum, c) => sum + provider.getCategoryStatus(c)['remaining']!);
-                          return DropdownMenuItem<String?>(value: name, child: Text('$name (₹${catTotal.toStringAsFixed(0)})', overflow: TextOverflow.ellipsis));
-                        }).toList(),
-                        onChanged: (val) {
-                          setState(() {
-                            _selectedCategoryName = val;
-                            _selectedCategoryId = null;
-                            _derivedBudgetType = null;
-                          });
-                        },
-                        validator: (val) => val == null ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String?>(
-                        isExpanded: true,
-                        decoration: _inputDecoration('Sub Category'),
-                        value: filteredSubCats.any((c) => c.id == _selectedCategoryId) ? _selectedCategoryId : null,
-                        items: filteredSubCats.map<DropdownMenuItem<String?>>((c) {
-                          double rem = provider.getCategoryStatus(c)['remaining']!;
-                          return DropdownMenuItem<String?>(
-                            value: c.id,
-                            child: Text('${c.subCategory} (₹${rem.toStringAsFixed(0)})', overflow: TextOverflow.ellipsis),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          setState(() {
-                            _selectedCategoryId = val;
-                            if (val != null) _derivedBudgetType = provider.getBudgetTypeForCategory(val);
-                          });
-                        },
-                        validator: (val) => val == null ? 'Required' : null,
-                      ),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.expenseToEdit == null ? 'New Expense' : 'Edit Expense'),
+        backgroundColor: Colors.teal.shade800,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (widget.defaultSource != null)
+                InputDecorator(
+                  decoration: _inputDecoration('Money Source'),
+                  child: Text(
+                    _getMoneySourceLabel(widget.defaultSource!),
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
+                  ),
+                )
+              else
+                DropdownButtonFormField<MoneySource>(
+                  isExpanded: true,
+                  decoration: _inputDecoration('Money Source'),
+                  value: _moneySource,
+                  items: MoneySource.values.where((s) => s != MoneySource.PERSONAL).map((s) {
+                    String balanceStr = '';
+                    if (s == MoneySource.WALLET) balanceStr = ' (₹${provider.walletBalance.toStringAsFixed(0)})';
+                    return DropdownMenuItem(
+                      value: s, 
+                      child: Text(_getMoneySourceLabel(s) + balanceStr),
+                    );
+                  }).toList(),
+                  onChanged: (val) => setState(() => _moneySource = val!),
+                ),
+              if (_moneySource == MoneySource.ISKCON) ...[
+                const SizedBox(height: 24),
+                Text('CATEGORY', style: _labelStyle),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String?>(
+                  isExpanded: true,
+                  decoration: _inputDecoration('Main Category'),
+                  value: parentCategories.contains(_selectedCategoryName) ? _selectedCategoryName : null,
+                  items: parentCategories.map<DropdownMenuItem<String?>>((name) {
+                    double catTotal = allCats.where((c) => c.category == name).fold(0, (sum, c) => sum + provider.getCategoryStatus(c)['remaining']!);
+                    return DropdownMenuItem<String?>(value: name, child: Text('$name (₹${catTotal.toStringAsFixed(0)})', overflow: TextOverflow.ellipsis));
+                  }).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedCategoryName = val;
+                      _selectedCategoryId = null;
+                      _derivedBudgetType = null;
+                    });
+                  },
+                  validator: (val) => val == null ? 'Required' : null,
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String?>(
+                  isExpanded: true,
+                  decoration: _inputDecoration('Sub Category'),
+                  value: filteredSubCats.any((c) => c.id == _selectedCategoryId) ? _selectedCategoryId : null,
+                  items: filteredSubCats.map<DropdownMenuItem<String?>>((c) {
+                    double rem = provider.getCategoryStatus(c)['remaining']!;
+                    return DropdownMenuItem<String?>(
+                      value: c.id,
+                      child: Text('${c.subCategory} (₹${rem.toStringAsFixed(0)})', overflow: TextOverflow.ellipsis),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedCategoryId = val;
+                      if (val != null) _derivedBudgetType = provider.getBudgetTypeForCategory(val);
+                    });
+                  },
+                  validator: (val) => val == null ? 'Required' : null,
+                ),
+              ],
+              const SizedBox(height: 24),
+              Text('DETAILS', style: _labelStyle),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _amountController,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                decoration: _inputDecoration('Amount').copyWith(prefixText: '₹ '),
+                keyboardType: TextInputType.number,
+                validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 16),
+              InkWell(
+                onTap: _pickDate,
+                child: InputDecorator(
+                  decoration: _inputDecoration('Date'),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(DateFormat('MMMM dd, yyyy').format(_selectedDate)),
+                      const Icon(Icons.calendar_today, size: 18),
                     ],
-                    const SizedBox(height: 24),
-                    Text('DETAILS', style: _labelStyle),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _amountController,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                      decoration: _inputDecoration('Amount').copyWith(prefixText: '₹ '),
-                      keyboardType: TextInputType.number,
-                      validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    InkWell(
-                      onTap: _pickDate,
-                      child: InputDecorator(
-                        decoration: _inputDecoration('Date'),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(DateFormat('MMMM dd, yyyy').format(_selectedDate)),
-                            const Icon(Icons.calendar_today, size: 18),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _remarksController,
-                      decoration: _inputDecoration('Remarks / Description'),
-                      maxLines: 2,
-                      validator: (val) => (val == null || val.isEmpty) ? 'Remarks are mandatory' : null,
-                    ),
-                    const SizedBox(height: 40),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.tealAccent.shade700,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 0,
-                        ),
-                        onPressed: _submit,
-                        child: Text(
-                          widget.expenseToEdit == null ? 'SAVE EXPENSE' : 'UPDATE EXPENSE',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _remarksController,
+                decoration: _inputDecoration('Remarks / Description'),
+                maxLines: 2,
+                validator: (val) => (val == null || val.isEmpty) ? 'Remarks are mandatory' : null,
+              ),
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.tealAccent.shade700,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  onPressed: _submit,
+                  child: Text(
+                    widget.expenseToEdit == null ? 'SAVE EXPENSE' : 'UPDATE EXPENSE',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                  ),
+                ),
+              ),
+              // Add extra padding at the bottom to ensure the last field is scrollable above the keyboard
+              SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 40),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -127,7 +127,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
         final List<Map<String, dynamic>> historyEntries = [];
 
         // Add Transfers (Advances)
-        for (var t in provider.transfers) {
+        for (var t in provider.transfers.where((t) => t.type == TransferType.TO_PERSONAL && t.fromCategoryId == null && t.toCategoryId == null)) {
           final ccName = _getCostCenterName(provider, t.costCenterId);
           historyEntries.add({
             'title': 'Advance from $ccName',
@@ -385,43 +385,64 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Icon
-                Padding(
-                  padding: const EdgeInsets.only(top: 4, right: 12),
+                // Icon Circle
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: (entry['color'] as Color).withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
                   child: Icon(
-                    isPositive ? Icons.arrow_downward : Icons.arrow_upward, // Arrow logic: Down = In (Adv), Up = Out (Exp)
-                    color: entry['color'], 
-                    size: 20
+                    isPositive ? Icons.arrow_downward : Icons.arrow_upward,
+                    color: entry['color'],
+                    size: 20,
                   ),
                 ),
+                const SizedBox(width: 16),
+                // Details
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(dateLine, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text(
+                        dateLine,
+                        style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                      ),
                       const SizedBox(height: 4),
-                      Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      if (meta != null && meta.toString().isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(meta, style: const TextStyle(fontSize: 13, fontStyle: FontStyle.italic, color: Colors.white70)),
-                        ),
+                      Text(
+                        title,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       if (subtitle.isNotEmpty) 
                         Padding(
-                          padding: const EdgeInsets.only(top: 2),
-                          child: Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.white60)),
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            subtitle,
+                            style: const TextStyle(color: Colors.white60, fontSize: 12),
+                          ),
+                        ),
+                      if (meta != null && meta.toString().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            meta,
+                            style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.white70),
+                          ),
                         ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 8),
+                // Amount
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      '${isPositive ? '+' : ''}${amount.abs().toStringAsFixed(0)}',
+                      '${isPositive ? '+' : '-'}${amount.abs().toStringAsFixed(0)}',
                       style: TextStyle(color: isPositive ? Colors.greenAccent : Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     if (entry['type'] == 'Expense')
@@ -458,7 +479,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
             ListTile(
               leading: const Icon(Icons.swap_horiz, color: Colors.blueAccent),
               title: const Text('Record Advance Received'),
-              onTap: () { Navigator.pop(context); _showForm(context, const AddTransferScreen()); },
+              onTap: () { Navigator.pop(context); _showForm(context, const AddTransferScreen(initialType: TransferType.TO_PERSONAL)); },
             ),
           const SizedBox(height: 16),
         ],
@@ -467,18 +488,9 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
   }
 
   void _showForm(BuildContext context, Widget screen) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.85,
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: screen,
-      ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => screen),
     );
   }
 

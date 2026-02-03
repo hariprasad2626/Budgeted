@@ -6,6 +6,8 @@ import '../models/budget_category.dart';
 import '../models/personal_adjustment.dart';
 import '../models/cost_center_adjustment.dart';
 import '../services/firestore_service.dart';
+import 'add_expense_screen.dart';
+import 'transaction_history_screen.dart';
 
 class CategoryManagerScreen extends StatelessWidget {
   const CategoryManagerScreen({super.key});
@@ -224,88 +226,22 @@ class CategoryManagerScreen extends StatelessWidget {
   // Let's do multi_replace.
 
   void _showTransactions(BuildContext context, BudgetCategory cat) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return Consumer<AccountingProvider>(
-          builder: (context, provider, child) {
-            final catExpenses = provider.expenses.where((e) => e.categoryId == cat.id).toList();
-            final catDonations = provider.donations.where((d) => d.budgetCategoryId == cat.id).toList();
-            final catAdjustments = provider.centerAdjustments.where((a) => a.categoryId == cat.id).toList();
-
-            return Container(
-              height: MediaQuery.of(context).size.height * 0.75,
-              decoration: const BoxDecoration(
-                color: Color(0xFF1E1E1E),
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-              ),
-              child: Column(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      children: [
-                        Text(cat.category, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                        Text(cat.subCategory, style: const TextStyle(color: Colors.grey)),
-                      ],
-                    ),
-                  ),
-                  const Divider(),
-                  Expanded(
-                    child: (catExpenses.isEmpty && catDonations.isEmpty && catAdjustments.isEmpty)
-                        ? const Center(child: Text('No transactions recorded for this category.'))
-                        : ListView(
-                            padding: const EdgeInsets.all(16),
-                            children: [
-                              if (catAdjustments.isNotEmpty) ...[
-                                const Text('Manual Adjustments', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent)),
-                                ...catAdjustments.map((a) => ListTile(
-                                      leading: Icon(Icons.tune, color: a.type == AdjustmentType.CREDIT ? Colors.greenAccent : Colors.orangeAccent),
-                                      title: Text(a.remarks),
-                                      subtitle: Text(DateFormat('MMM dd, yyyy').format(a.date)),
-                                      trailing: Text(
-                                        '${a.type == AdjustmentType.CREDIT ? '+' : '-'}₹${a.amount}', 
-                                        style: TextStyle(fontWeight: FontWeight.bold, color: a.type == AdjustmentType.CREDIT ? Colors.greenAccent : Colors.orangeAccent)
-                                      ),
-                                    )),
-                                const SizedBox(height: 16),
-                              ],
-                              if (catDonations.isNotEmpty) ...[
-                                const Text('Donations (Budget Boosts)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.greenAccent)),
-                                ...catDonations.map((d) => ListTile(
-                                      leading: const Icon(Icons.add_circle, color: Colors.greenAccent),
-                                      title: Text(d.remarks),
-                                      subtitle: Text(DateFormat('MMM dd, yyyy').format(d.date)),
-                                      trailing: Text('+₹${d.amount}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.greenAccent)),
-                                    )),
-                                const SizedBox(height: 16),
-                              ],
-                              if (catExpenses.isNotEmpty) ...[
-                                const Text('Expenses', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orangeAccent)),
-                                ...catExpenses.map((e) => ListTile(
-                                      leading: const Icon(Icons.remove_circle, color: Colors.orangeAccent),
-                                      title: Text(e.remarks),
-                                      subtitle: Text(DateFormat('MMM dd, yyyy').format(e.date)),
-                                      trailing: Text('-₹${e.amount}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.orangeAccent)),
-                                    )),
-                              ],
-                            ],
-                          ),
-                  ),
-                ],
-              ),
-            );
+    final provider = Provider.of<AccountingProvider>(context, listen: false);
+    final catExpenses = provider.expenses.where((e) => e.categoryId == cat.id).toList();
+    
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => TransactionHistoryScreen(
+          title: '${cat.subCategory} History',
+          items: catExpenses,
+          type: 'Expense',
+          addScreen: const AddExpenseScreen(), 
+          showEntryDetails: (context, item, type) {
+            // Re-use detail viewer logic if needed
           },
-        );
-      },
+        ),
+      ),
     );
   }
 

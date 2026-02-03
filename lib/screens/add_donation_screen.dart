@@ -55,105 +55,102 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
       (c.isActive || c.id == _selectedCategoryId)
     ).toList();
 
-    return Material(
-      color: Colors.transparent,
-      child: Column(
-        children: [
-          _buildHeader(context),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('DETAILS', style: _labelStyle),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _amountController,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                      decoration: _inputDecoration('Amount').copyWith(prefixText: '₹ '),
-                      keyboardType: TextInputType.number,
-                      validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<DonationMode>(
-                      isExpanded: true,
-                      decoration: _inputDecoration('Donation Mode'),
-                      value: _mode,
-                      items: DonationMode.values.map((m) => DropdownMenuItem(value: m, child: Text(m.toString().split('.').last, overflow: TextOverflow.ellipsis))).toList(),
-                      onChanged: (val) => setState(() => _mode = val!),
-                    ),
-                    const SizedBox(height: 16),
-                    if (_mode == DonationMode.MERGE_TO_BUDGET) ...[
-                      DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        decoration: _inputDecoration('Target Category'),
-                        value: parentCategories.contains(_selectedCategoryName) ? _selectedCategoryName : null,
-                        items: parentCategories.map((name) => DropdownMenuItem(value: name, child: Text(name, overflow: TextOverflow.ellipsis))).toList(),
-                        onChanged: (val) => setState(() {
-                          _selectedCategoryName = val;
-                          _selectedCategoryId = null;
-                        }),
-                        validator: (val) => (_mode == DonationMode.MERGE_TO_BUDGET && val == null) ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        decoration: _inputDecoration('Sub Category'),
-                        value: filteredSubCats.any((c) => c.id == _selectedCategoryId) ? _selectedCategoryId : null,
-                        items: filteredSubCats.map((c) => DropdownMenuItem(value: c.id, child: Text(c.subCategory, overflow: TextOverflow.ellipsis))).toList(),
-                        onChanged: (val) => setState(() => _selectedCategoryId = val),
-                        validator: (val) => (_mode == DonationMode.MERGE_TO_BUDGET && val == null) ? 'Required' : null,
-                      ),
-                      const SizedBox(height: 16),
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.donationToEdit == null ? 'New Donation' : 'Edit Donation'),
+        backgroundColor: Colors.teal.shade800,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('DETAILS', style: _labelStyle),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _amountController,
+                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                decoration: _inputDecoration('Amount').copyWith(prefixText: '₹ '),
+                keyboardType: TextInputType.number,
+                validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<DonationMode>(
+                isExpanded: true,
+                decoration: _inputDecoration('Donation Mode'),
+                value: _mode,
+                items: DonationMode.values.map((m) => DropdownMenuItem(value: m, child: Text(m.toString().split('.').last, overflow: TextOverflow.ellipsis))).toList(),
+                onChanged: (val) => setState(() => _mode = val!),
+              ),
+              const SizedBox(height: 16),
+              if (_mode == DonationMode.MERGE_TO_BUDGET) ...[
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  decoration: _inputDecoration('Target Category'),
+                  value: parentCategories.contains(_selectedCategoryName) ? _selectedCategoryName : null,
+                  items: parentCategories.map((name) => DropdownMenuItem(value: name, child: Text(name, overflow: TextOverflow.ellipsis))).toList(),
+                  onChanged: (val) => setState(() {
+                    _selectedCategoryName = val;
+                    _selectedCategoryId = null;
+                  }),
+                  validator: (val) => (_mode == DonationMode.MERGE_TO_BUDGET && val == null) ? 'Required' : null,
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  decoration: _inputDecoration('Sub Category'),
+                  value: filteredSubCats.any((c) => c.id == _selectedCategoryId) ? _selectedCategoryId : null,
+                  items: filteredSubCats.map((c) => DropdownMenuItem(value: c.id, child: Text(c.subCategory, overflow: TextOverflow.ellipsis))).toList(),
+                  onChanged: (val) => setState(() => _selectedCategoryId = val),
+                  validator: (val) => (_mode == DonationMode.MERGE_TO_BUDGET && val == null) ? 'Required' : null,
+                ),
+                const SizedBox(height: 16),
+              ],
+              InkWell(
+                onTap: _pickDate,
+                child: InputDecorator(
+                  decoration: _inputDecoration('Date'),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(DateFormat('MMMM dd, yyyy').format(_selectedDate)),
+                      const Icon(Icons.calendar_today, size: 18),
                     ],
-                    InkWell(
-                      onTap: _pickDate,
-                      child: InputDecorator(
-                        decoration: _inputDecoration('Date'),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(DateFormat('MMMM dd, yyyy').format(_selectedDate)),
-                            const Icon(Icons.calendar_today, size: 18),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _remarksController,
-                      decoration: _inputDecoration('Remarks / Source'),
-                      maxLines: 2,
-                      validator: (val) => (val == null || val.isEmpty) ? 'Remarks are mandatory' : null,
-                    ),
-                    const SizedBox(height: 40),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 55,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade700,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 0,
-                        ),
-                        onPressed: _submit,
-                        child: Text(
-                          widget.donationToEdit == null ? 'SAVE DONATION' : 'UPDATE DONATION',
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _remarksController,
+                decoration: _inputDecoration('Remarks / Source'),
+                maxLines: 2,
+                validator: (val) => (val == null || val.isEmpty) ? 'Remarks are mandatory' : null,
+              ),
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                height: 55,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green.shade700,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  onPressed: _submit,
+                  child: Text(
+                    widget.donationToEdit == null ? 'SAVE DONATION' : 'UPDATE DONATION',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                  ),
+                ),
+              ),
+              // Add extra padding at the bottom to ensure the last field is scrollable above the keyboard
+              SizedBox(height: MediaQuery.of(context).viewInsets.bottom + 40),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
