@@ -39,71 +39,147 @@ class _LedgerScreenState extends State<LedgerScreen> {
         // Gather all relevant transactions for this center
         final filterMode = ModalRoute.of(context)?.settings.arguments as String? ?? 'ALL_CENTER'; // 'PME', 'OTE', 'WALLET', 'ADVANCE', 'ALL_CENTER'
 
-        // Calculate unallocated amounts for Wallet view
-        double totalOteAllocated = provider.categories.where((c) => c.budgetType == BudgetType.OTE).fold(0, (sum, c) => sum + c.targetAmount);
-        double totalPmeAllocated = provider.categories.where((c) => c.budgetType == BudgetType.PME).fold(0, (sum, c) => sum + c.targetAmount);
+        // Calculate unallocated (Gap) amounts for Wallet view
+        double earmarkedOte = provider.categories.where((c) => c.budgetType == BudgetType.OTE).fold(0.0, (sum, c) => sum + c.targetAmount);
+        double earmarkedPmeMonthly = provider.categories.where((c) => c.budgetType == BudgetType.PME).fold(0.0, (sum, c) => sum + c.targetAmount);
 
         // Synthetic Budget Entries
         List<Map<String, dynamic>> budgetEntries = [];
         
-        if (activeCenter != null) {
-             DateTime pmeStart;
-             try {
-                pmeStart = DateFormat('yyyy-MM').parse(activeCenter.pmeStartMonth);
-             } catch (_) {
-                pmeStart = DateTime(2026, 1);
-             }
+        if (activeCenter != null && provider.budgetPeriods.isNotEmpty) {
+          final activePeriods = provider.budgetPeriods.where((p) => p.isActive).toList();
 
-             // OTE Allocation
-             double oteAmount = activeCenter.defaultOteAmount;
-             if (filterMode == 'WALLET') {
-                oteAmount -= totalOteAllocated;
-             }
-             
-              // Only show Budget entry in OTE, ALL_CENTER or Wallet view
-              if ((filterMode == 'OTE' || filterMode == 'ALL_CENTER' || filterMode == 'WALLET') && oteAmount != 0) {
-                  budgetEntries.add({
-                      'type': 'Budget',
-                      'source': 'System',
-                      'amount': oteAmount,
-                      'date': pmeStart,
-                      'title': filterMode == 'WALLET' ? 'OTE Wallet Fund' : 'OTE Budget Allocation',
-                      'color': Colors.tealAccent,
-                      'item': null,
-                      'budgetType': filterMode == 'WALLET' ? 'WALLET' : 'OTE',
-                      'status': 'Allocated',
-                      'statusColor': Colors.teal,
-                      'categoryPath': 'System Allocation',
-                  });
+          if (filterMode == 'WALLET') {
+            // WALLET View: Consolidated view of ALL Savings and Surplus
+            final Set<String> months = {};
+            for (var p in activePeriods) {
+              months.addAll(p.getAllMonths().where((m) => provider.isMonthInPastOrCurrent(m)));
+            }
+            final sortedMonths = months.toList()..sort();
+
+            for (var m in sortedMonths) {
+              DateTime monthDate;
+              try { monthDate = DateFormat('yyyy-MM').parse(m); } catch (_) { continue; }
+
+              double monthlyBaseline = 0;
+              double monthlyBudgeted = 0;
+              String? monthRemark;
+
+              for (var p in activePeriods) {
+                if (p.includesMonth(m)) {
+                  monthlyBaseline += p.defaultPmeAmount;
+                  monthlyBudgeted += p.getPmeForMonth(m);
+                  if (p.monthlyPmeRemarks.containsKey(m)) {
+                    monthRemark = p.monthlyPmeRemarks[m];
+                  }
+                }
               }
 
-             // PME Monthly Allocations
-             DateTime now = DateTime.now();
-             DateTime current = pmeStart;
-             double pmeAmount = activeCenter.defaultPmeAmount;
-             if (filterMode == 'WALLET') {
-                pmeAmount -= totalPmeAllocated;
-             }
+              // 1. Reduction Savings (The 20k the user is looking for)
+              if (monthlyBaseline > monthlyBudgeted) {
+                budgetEntries.add({
+                  'type': 'Budget',
+                  'source': 'System Savings',
+                  'amount': monthlyBaseline - monthlyBudgeted,
+                  'date': monthDate,
+                  'title': 'PME Reduction Savings',
+                  'color': Colors.amberAccent,
+                  'item': null,
+                  'budgetType': 'WALLET',
+                  'status': 'Saved',
+                  'statusColor': Colors.amber,
+                  'categoryPath': (monthRemark != null && monthRemark.isNotEmpty) ? monthRemark : 'Budget reduced for this month',
+                });
+              }
 
-             // Show PME Allocations in ALL_CENTER, PME view or Wallet view
-             if ((filterMode == 'ALL_CENTER' || filterMode == 'PME' || filterMode == 'WALLET') && pmeAmount != 0) {
-                 while (current.isBefore(now) || (current.month == now.month && current.year == now.year)) {
-                      budgetEntries.add({
-                         'type': 'Budget',
-                         'source': 'System',
-                         'amount': pmeAmount,
-                         'date': current,
-                         'title': filterMode == 'WALLET' ? 'Monthly Wallet Fund' : 'Monthly PME Budget',
-                         'color': Colors.purpleAccent,
-                         'item': null,
-                         'budgetType': filterMode == 'WALLET' ? 'WALLET' : 'PME',
-                         'status': 'Recurring',
-                         'statusColor': Colors.purple,
-                         'categoryPath': 'System Allocation',
-                      });
-                      current = DateTime(current.year, current.month + 1, 1);
-                 }
-             }
+              // 2. Unallocated Surplus
+              double leftover = monthlyBudgeted - earmarkedPmeMonthly;
+              if (leftover > 0) {
+                budgetEntries.add({
+                  'type': 'Budget',
+                  'source': 'Surplus',
+                  'amount': leftover,
+                  'date': monthDate,
+                  'title': 'Unallocated PME Surplus',
+                  'color': Colors.purpleAccent,
+                  'item': null,
+                  'budgetType': 'WALLET',
+                  'status': 'Surplus',
+                  'statusColor': Colors.purple,
+                  'categoryPath': 'Unused capacity in PME budget',
+                });
+              }
+            }
+
+            // OTE Surplus for Wallet
+            double totalOteBudgeted = activePeriods.fold(0.0, (sum, p) => sum + p.oteAmount);
+            if (totalOteBudgeted > earmarkedOte) {
+              budgetEntries.add({
+                'type': 'Budget',
+                'source': 'OTE Surplus',
+                'amount': totalOteBudgeted - earmarkedOte,
+                'date': DateTime.now(),
+                'title': 'OTE Surplus Gap',
+                'color': Colors.tealAccent,
+                'item': null,
+                'budgetType': 'WALLET',
+                'status': 'Allocated',
+                'statusColor': Colors.teal,
+                'categoryPath': 'Unallocated OTE funds',
+              });
+            }
+          } else {
+            // PME, OTE, or ALL_CENTER Views: Original per-period detailed view
+            for (var period in activePeriods) {
+              // Add OTE entry
+              if ((filterMode == 'OTE' || filterMode == 'ALL_CENTER') && period.oteAmount != 0) {
+                DateTime oteDate;
+                try { oteDate = DateFormat('yyyy-MM').parse(period.startMonth); } catch (_) { oteDate = DateTime(2026, 1); }
+                
+                budgetEntries.add({
+                  'type': 'Budget',
+                  'source': 'Period: ${period.name}',
+                  'amount': period.oteAmount,
+                  'date': oteDate,
+                  'title': 'OTE Budget (${period.name})',
+                  'color': Colors.tealAccent,
+                  'item': null,
+                  'budgetType': 'OTE',
+                  'status': 'Allocated',
+                  'statusColor': Colors.teal,
+                  'categoryPath': 'OTE allocation',
+                });
+              }
+
+                  if (filterMode == 'ALL_CENTER' || filterMode == 'PME') {
+                    for (var monthStr in period.getAllMonths()) {
+                      DateTime monthDate;
+                      try { monthDate = DateFormat('yyyy-MM').parse(monthStr); } catch (_) { continue; }
+                      
+                      if (!provider.isMonthInPastOrCurrent(monthStr)) continue;
+
+                      double amount = period.getPmeForMonth(monthStr);
+                  if (amount <= 0) continue;
+
+                  String? monthRemark = period.monthlyPmeRemarks[monthStr];
+
+                  budgetEntries.add({
+                    'type': 'Budget',
+                    'source': 'Period: ${period.name}',
+                    'amount': amount,
+                    'date': monthDate,
+                    'title': 'Monthly PME (${period.name})',
+                    'color': Colors.purpleAccent,
+                    'item': null,
+                    'budgetType': 'PME',
+                    'status': 'Recurring',
+                    'statusColor': Colors.purple,
+                    'categoryPath': (monthRemark != null && monthRemark.isNotEmpty) ? 'Adjustment: $monthRemark' : 'Monthly allocation',
+                  });
+                }
+              }
+            }
+          }
         }
 
         // Gather all relevant transactions for this center
@@ -335,10 +411,6 @@ class _LedgerScreenState extends State<LedgerScreen> {
         return Scaffold(
           appBar: AppBar(
             title: Text('${activeCenter.name} Ledger'),
-          ),
-          floatingActionButton: FloatingActionButton(
-            onPressed: () => _showAddMenu(context),
-            child: const Icon(Icons.add),
           ),
           body: Column(
             children: [

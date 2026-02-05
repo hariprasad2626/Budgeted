@@ -9,6 +9,7 @@ class CostCenter {
   final double defaultPmeAmount; // Every month budget
   final double defaultOteAmount; // Total budget for OTE
   final String pmeStartMonth; // e.g. "2026-01"
+  final String pmeEndMonth; // e.g. "2026-12"
 
   CostCenter({
     required this.id,
@@ -19,6 +20,7 @@ class CostCenter {
     this.defaultPmeAmount = 0.0,
     this.defaultOteAmount = 0.0,
     this.pmeStartMonth = '2026-01',
+    this.pmeEndMonth = '2026-12',
   });
 
   Map<String, dynamic> toMap() {
@@ -30,6 +32,7 @@ class CostCenter {
       'defaultPmeAmount': defaultPmeAmount,
       'defaultOteAmount': defaultOteAmount,
       'pmeStartMonth': pmeStartMonth,
+      'pmeEndMonth': pmeEndMonth,
     };
   }
 
@@ -43,6 +46,7 @@ class CostCenter {
       defaultPmeAmount: (map['defaultPmeAmount'] as num?)?.toDouble() ?? 0.0,
       defaultOteAmount: (map['defaultOteAmount'] as num?)?.toDouble() ?? 0.0,
       pmeStartMonth: map['pmeStartMonth'] ?? '2026-01',
+      pmeEndMonth: map['pmeEndMonth'] ?? '2026-12',
     );
   }
 }

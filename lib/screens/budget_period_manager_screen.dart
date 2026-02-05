@@ -23,6 +23,7 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
   double _ote = 0;
   String _remarks = '';
   Map<String, double> _monthlyPme = {};
+  Map<String, String> _monthlyPmeRemarks = {};
 
   @override
   void initState() {
@@ -47,16 +48,46 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
       _ote = period.oteAmount;
       _remarks = period.remarks;
       _monthlyPme = Map.from(period.monthlyPme);
+      _monthlyPmeRemarks = Map.from(period.monthlyPmeRemarks);
     } else {
-      final now = DateTime.now();
-      final fiscalStartYear = now.month >= 4 ? now.year : now.year - 1;
-      _name = 'FY ${fiscalStartYear}-${(fiscalStartYear + 1) % 100}';
-      _startMonth = '$fiscalStartYear-04';
-      _endMonth = '${fiscalStartYear + 1}-03';
-      _defaultPme = center.defaultPmeAmount;
-      _ote = center.defaultOteAmount;
+      // SMART DEFAULTING
+      final periods = Provider.of<AccountingProvider>(context, listen: false).budgetPeriods;
+      if (periods.isNotEmpty) {
+        // Sort to find the absolutely last end month
+        final sortedPeriods = List<BudgetPeriod>.from(periods)..sort((a, b) => b.endMonth.compareTo(a.endMonth));
+        final lastEndMonth = sortedPeriods.first.endMonth;
+        
+        try {
+          final lastDate = DateFormat('yyyy-MM').parse(lastEndMonth);
+          final nextStartDate = DateTime(lastDate.year, lastDate.month + 1, 1);
+          final nextEndDate = DateTime(nextStartDate.year, nextStartDate.month + 11, 1);
+          
+          _startMonth = DateFormat('yyyy-MM').format(nextStartDate);
+          _endMonth = DateFormat('yyyy-MM').format(nextEndDate);
+          _name = 'Allocation ${DateFormat('MMM yy').format(nextStartDate)} - ${DateFormat('MMM yy').format(nextEndDate)}';
+
+          // Carry forward amounts from last period
+          _defaultPme = sortedPeriods.first.defaultPmeAmount;
+          _ote = sortedPeriods.first.oteAmount;
+        } catch (_) {
+          _startMonth = center.pmeStartMonth;
+          _endMonth = center.pmeEndMonth;
+          _name = 'New Budget Cycle';
+          _defaultPme = 0;
+          _ote = 0;
+        }
+      } else {
+        // No periods yet
+        _startMonth = center.pmeStartMonth;
+        _endMonth = center.pmeEndMonth;
+        _name = 'Initial Budget Cycle';
+        _defaultPme = 0;
+        _ote = 0;
+      }
+      
       _remarks = '';
       _monthlyPme = {};
+      _monthlyPmeRemarks = {};
     }
 
     showDialog(
@@ -72,97 +103,36 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    TextFormField(
-                      initialValue: _name,
-                      decoration: const InputDecoration(
-                        labelText: 'Period Name',
-                        hintText: 'e.g., FY 2025-26',
-                      ),
-                      validator: (val) => val == null || val.isEmpty ? 'Required' : null,
-                      onSaved: (val) => _name = val!,
-                    ),
+                    _buildTextField('Period Name', _name, (String? val) { _name = val ?? ''; }),
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        Expanded(
-                          child: TextFormField(
-                            initialValue: _startMonth,
-                            decoration: const InputDecoration(
-                              labelText: 'Start Month',
-                              hintText: 'yyyy-MM',
-                            ),
-                            validator: (val) {
-                              if (val == null || val.isEmpty) return 'Required';
-                              if (!RegExp(r'^\d{4}-\d{2}$').hasMatch(val)) return 'Format: yyyy-MM';
-                              return null;
-                            },
-                            onChanged: (val) {
-                              setDialogState(() => _startMonth = val);
-                            },
-                            onSaved: (val) => _startMonth = val!,
-                          ),
-                        ),
+                        Expanded(child: _buildMonthPicker('Start Month', _startMonth, (String val) => setDialogState(() { _startMonth = val; }))),
                         const SizedBox(width: 16),
-                        Expanded(
-                          child: TextFormField(
-                            initialValue: _endMonth,
-                            decoration: const InputDecoration(
-                              labelText: 'End Month',
-                              hintText: 'yyyy-MM',
-                            ),
-                            validator: (val) {
-                              if (val == null || val.isEmpty) return 'Required';
-                              if (!RegExp(r'^\d{4}-\d{2}$').hasMatch(val)) return 'Format: yyyy-MM';
-                              return null;
-                            },
-                            onChanged: (val) {
-                              setDialogState(() => _endMonth = val);
-                            },
-                            onSaved: (val) => _endMonth = val!,
-                          ),
-                        ),
+                        Expanded(child: _buildMonthPicker('End Month', _endMonth, (String val) => setDialogState(() { _endMonth = val; }))),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      initialValue: _defaultPme.toString(),
-                      decoration: const InputDecoration(
-                        labelText: 'Default Monthly PME (₹)',
-                        hintText: 'Applied to all months by default',
-                      ),
-                      keyboardType: TextInputType.number,
-                      onChanged: (val) {
-                        setDialogState(() => _defaultPme = double.tryParse(val) ?? 0);
-                      },
-                      onSaved: (val) => _defaultPme = double.tryParse(val ?? '0') ?? 0,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      initialValue: _ote.toString(),
-                      decoration: const InputDecoration(
-                        labelText: 'OTE Budget (₹)',
-                        hintText: 'One-time expense for this period',
-                      ),
-                      keyboardType: TextInputType.number,
-                      onSaved: (val) => _ote = double.tryParse(val ?? '0') ?? 0,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      initialValue: _remarks,
-                      decoration: const InputDecoration(labelText: 'Remarks'),
-                      maxLines: 2,
-                      onSaved: (val) => _remarks = val ?? '',
-                    ),
-                    // Monthly PME customization section (Compact & Expandable)
                     const Divider(height: 32),
+                    
+                    // The two main components: PME and OTE
+                    const Text('Budget Components', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.teal)),
+                    const SizedBox(height: 16),
+                    
+                    // PME Section
+                    _buildNumberField('Default Monthly PME (₹)', _defaultPme, (double val) => setDialogState(() { _defaultPme = val; })),
                     ExpansionTile(
-                      title: const Text('Adjust Individual Months', style: TextStyle(fontSize: 14)),
-                      subtitle: const Text('Optional overrides for specific months', style: TextStyle(fontSize: 12)),
+                      title: const Text('Monthly PME Overrides', style: TextStyle(fontSize: 14)),
+                      subtitle: Text('${_monthlyPme.length} overrides applied', style: const TextStyle(fontSize: 12)),
                       tilePadding: EdgeInsets.zero,
-                      children: [
-                        _buildMonthlyPmeSection(setDialogState),
-                      ],
+                      children: [_buildMonthlyPmeSection(setDialogState)],
                     ),
+                    const SizedBox(height: 16),
+                    
+                    // OTE Section
+                    _buildNumberField('One-Time Expense (OTE) (₹)', _ote, (double val) { _ote = val; }),
+                    
+                    const SizedBox(height: 16),
+                    _buildTextField('Remarks', _remarks, (String? val) { _remarks = val ?? ''; }, maxLines: 2),
                   ],
                 ),
               ),
@@ -249,50 +219,58 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
             color: Colors.black12,
             borderRadius: BorderRadius.circular(8),
           ),
-          child: ListView.separated(
-            shrinkWrap: true,
-            itemCount: months.length,
-            separatorBuilder: (_, __) => const Divider(height: 1, indent: 16),
-            itemBuilder: (context, index) {
-              final month = months[index];
-              final hasOverride = _monthlyPme.containsKey(month);
-              final amount = _monthlyPme[month] ?? _defaultPme;
-              
-              return ListTile(
-                dense: true,
-                visualDensity: VisualDensity.compact,
-                title: Text(_formatMonth(month), style: const TextStyle(fontSize: 13)),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '₹${NumberFormat('#,##,###').format(amount)}',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: hasOverride ? Colors.orange : null,
-                        fontWeight: hasOverride ? FontWeight.bold : FontWeight.normal,
+          child: SingleChildScrollView(
+            child: Column(
+              children: months.map((month) {
+            final hasOverride = _monthlyPme.containsKey(month);
+            final amount = _monthlyPme[month] ?? _defaultPme;
+            
+            return Column(
+              children: [
+                ListTile(
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  title: Text(_formatMonth(month), style: const TextStyle(fontSize: 13)),
+                  subtitle: _monthlyPmeRemarks.containsKey(month) 
+                    ? Text(_monthlyPmeRemarks[month]!, style: const TextStyle(fontSize: 11, color: Colors.orange, fontStyle: FontStyle.italic))
+                    : null,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '₹${NumberFormat('#,##,###').format(amount)}',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: hasOverride ? Colors.orange : null,
+                          fontWeight: hasOverride ? FontWeight.bold : FontWeight.normal,
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      icon: Icon(hasOverride ? Icons.edit : Icons.add, size: 16),
-                      onPressed: () => _editMonthAmount(month, amount, setDialogState),
-                    ),
-                    if (hasOverride)
                       IconButton(
-                        icon: const Icon(Icons.close, size: 16, color: Colors.grey),
-                        onPressed: () {
-                          setDialogState(() => _monthlyPme.remove(month));
-                        },
+                        icon: Icon(hasOverride ? Icons.edit : Icons.add, size: 16),
+                        onPressed: () => _editMonthAmount(month, amount, setDialogState),
                       ),
-                  ],
+                      if (hasOverride)
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 16, color: Colors.grey),
+                          onPressed: () {
+                            setDialogState(() {
+                              _monthlyPme.remove(month);
+                              _monthlyPmeRemarks.remove(month);
+                            });
+                          },
+                        ),
+                    ],
+                  ),
                 ),
+                ],
               );
-            },
+            }).toList(),
           ),
         ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
+}
 
   String _formatMonth(String month) {
     try {
@@ -304,20 +282,34 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
   }
 
   void _editMonthAmount(String month, double currentAmount, StateSetter setDialogState) {
-    final controller = TextEditingController(text: currentAmount.toString());
+    final amountController = TextEditingController(text: currentAmount.toString());
+    final remarkController = TextEditingController(text: _monthlyPmeRemarks[month] ?? '');
     
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text('Edit ${_formatMonth(month)}'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            labelText: 'PME Amount (₹)',
-            hintText: 'Default: ₹${_defaultPme}',
-          ),
-          autofocus: true,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'PME Amount (₹)',
+                hintText: 'Default: ₹${_defaultPme}',
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: remarkController,
+              decoration: const InputDecoration(
+                labelText: 'Remarks for this month',
+                hintText: 'e.g., Reduced due to surplus',
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -326,12 +318,19 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              final newAmount = double.tryParse(controller.text) ?? _defaultPme;
+              final newAmount = double.tryParse(amountController.text) ?? _defaultPme;
+              final newRemark = remarkController.text.trim();
               setDialogState(() {
                 if (newAmount != _defaultPme) {
                   _monthlyPme[month] = newAmount;
                 } else {
                   _monthlyPme.remove(month);
+                }
+
+                if (newRemark.isNotEmpty) {
+                  _monthlyPmeRemarks[month] = newRemark;
+                } else {
+                  _monthlyPmeRemarks.remove(month);
                 }
               });
               Navigator.pop(context);
@@ -355,6 +354,7 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
       endMonth: _endMonth,
       defaultPmeAmount: _defaultPme,
       monthlyPme: _monthlyPme,
+      monthlyPmeRemarks: _monthlyPmeRemarks,
       oteAmount: _ote,
       createdAt: existingPeriod?.createdAt ?? DateTime.now(),
       isActive: existingPeriod?.isActive ?? true,
@@ -381,6 +381,122 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
         );
       }
     }
+  }
+
+  Widget _buildSummaryRow(String label, double amount, {bool isBold = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          Text(
+            '₹${NumberFormat('#,##,###').format(amount)}',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              color: isBold ? Colors.teal.shade700 : null,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _editMonthAmountFromList(BudgetPeriod period, String month, double currentAmount) {
+    final amountController = TextEditingController(text: currentAmount.toString());
+    final remarkController = TextEditingController(text: period.monthlyPmeRemarks[month] ?? '');
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Edit ${_formatMonth(month)}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: amountController,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'PME Amount (₹)'),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: remarkController,
+              decoration: const InputDecoration(labelText: 'Remarks for this month'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              final newAmount = double.tryParse(amountController.text) ?? period.defaultPmeAmount;
+              final newRemark = remarkController.text.trim();
+              
+              final updatedMonthlyPme = Map<String, double>.from(period.monthlyPme);
+              final updatedRemarks = Map<String, String>.from(period.monthlyPmeRemarks);
+              
+              if (newAmount != period.defaultPmeAmount) {
+                updatedMonthlyPme[month] = newAmount;
+              } else {
+                updatedMonthlyPme.remove(month);
+              }
+
+              if (newRemark.isNotEmpty) {
+                updatedRemarks[month] = newRemark;
+              } else {
+                updatedRemarks.remove(month);
+              }
+
+              await _service.updateBudgetPeriod(period.copyWith(
+                monthlyPme: updatedMonthlyPme,
+                monthlyPmeRemarks: updatedRemarks,
+              ));
+              if (mounted) Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField(String label, String initial, FormFieldSetter<String> onSaved, {int maxLines = 1}) {
+    return TextFormField(
+      initialValue: initial,
+      decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
+      maxLines: maxLines,
+      validator: (val) => val == null || val.isEmpty ? 'Required' : null,
+      onSaved: onSaved,
+    );
+  }
+
+  Widget _buildNumberField(String label, double initial, Function(double) onChanged) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        initialValue: initial.toString(),
+        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder(), isDense: true),
+        keyboardType: TextInputType.number,
+        onChanged: (val) => onChanged(double.tryParse(val) ?? 0),
+        onSaved: (val) => onChanged(double.tryParse(val ?? '0') ?? 0),
+      ),
+    );
+  }
+
+  Widget _buildMonthPicker(String label, String initial, Function(String) onChanged) {
+    return TextFormField(
+      initialValue: initial,
+      decoration: InputDecoration(labelText: label, hintText: 'yyyy-MM', border: const OutlineInputBorder(), isDense: true),
+      validator: (val) {
+        if (val == null || val.isEmpty) return 'Required';
+        if (!RegExp(r'^\d{4}-\d{2}$').hasMatch(val)) return 'Format: yyyy-MM';
+        return null;
+      },
+      onChanged: onChanged,
+      onSaved: (val) => onChanged(val ?? ''),
+    );
   }
 
   void _confirmDelete(BudgetPeriod period) {
@@ -540,10 +656,22 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
                             color: Colors.white,
                           ),
                         ),
-                        title: Text(period.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(
-                          '${_formatMonth(period.startMonth)} → ${_formatMonth(period.endMonth)} (${period.monthCount} months)\n'
-                          'PME: ₹${NumberFormat('#,##,###').format(period.totalPmeBudget)} | OTE: ₹${NumberFormat('#,##,###').format(period.oteAmount)}',
+                        title: Row(
+                          children: [
+                            Expanded(child: Text(period.name, style: const TextStyle(fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+                            const SizedBox(width: 8),
+                            Text('PME: ₹${NumberFormat('#,##,###').format(period.totalPmeBudget)}', 
+                              style: TextStyle(fontSize: 13, color: Colors.teal.shade700, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        subtitle: Row(
+                          children: [
+                            Expanded(child: Text('${_formatMonth(period.startMonth)} → ${_formatMonth(period.endMonth)}', 
+                              style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
+                            const SizedBox(width: 8),
+                            Text('OTE: ₹${NumberFormat('#,##,###').format(period.oteAmount)}', 
+                              style: TextStyle(fontSize: 13, color: Colors.orange.shade700, fontWeight: FontWeight.bold)),
+                          ],
                         ),
                         trailing: PopupMenuButton(
                           itemBuilder: (context) => [
@@ -567,38 +695,43 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
                           },
                         ),
                         children: [
-                          // Monthly breakdown
                           Padding(
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('Monthly PME Breakdown:', 
-                                  style: TextStyle(fontWeight: FontWeight.bold)),
-                                const SizedBox(height: 8),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: period.getAllMonths().map((month) {
-                                    final amount = period.getPmeForMonth(month);
-                                    final hasOverride = period.monthlyPme.containsKey(month);
-                                    return Chip(
-                                      label: Text(
-                                        '${_formatMonth(month)}: ₹${NumberFormat('#,##,###').format(amount)}',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: hasOverride ? Colors.orange.shade800 : null,
-                                        ),
-                                      ),
-                                      backgroundColor: hasOverride ? Colors.orange.shade100 : null,
-                                    );
-                                  }).toList(),
+                                _buildSummaryRow('PME Monthly Average', period.defaultPmeAmount),
+                                _buildSummaryRow('PME Total (Period)', period.totalPmeBudget, isBold: true),
+                                _buildSummaryRow('OTE Budget', period.oteAmount, isBold: true),
+                                const Divider(),
+                                const Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text('Monthly Adjustments:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                 ),
-                                if (period.remarks.isNotEmpty) ...[
-                                  const SizedBox(height: 12),
-                                  Text('Remarks: ${period.remarks}', 
-                                    style: const TextStyle(color: Colors.grey)),
-                                ],
+                                ...period.getAllMonths().map((month) {
+                                  final amount = period.getPmeForMonth(month);
+                                  final hasOverride = period.monthlyPme.containsKey(month);
+                                  return ListTile(
+                                    dense: true,
+                                    visualDensity: VisualDensity.compact,
+                                    title: Text(_formatMonth(month), style: const TextStyle(fontSize: 13)),
+                                    subtitle: period.monthlyPmeRemarks.containsKey(month)
+                                      ? Text(period.monthlyPmeRemarks[month]!, style: const TextStyle(fontSize: 11, color: Colors.orange, fontStyle: FontStyle.italic))
+                                      : null,
+                                    trailing: Text(
+                                      '₹${NumberFormat('#,##,###').format(amount)}',
+                                      style: TextStyle(
+                                        color: hasOverride ? Colors.orange : null,
+                                        fontWeight: hasOverride ? FontWeight.bold : null,
+                                      ),
+                                    ),
+                                    onTap: () => _editMonthAmountFromList(period, month, amount),
+                                  );
+                                }).toList(),
+                                if (period.remarks.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 8),
+                                    child: Text('Remarks: ${period.remarks}', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                                  ),
                               ],
                             ),
                           ),

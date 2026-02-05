@@ -238,10 +238,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
                 icon: const Icon(Icons.check),
                 backgroundColor: Colors.tealAccent.shade700,
               )
-            : FloatingActionButton(
-                onPressed: () => _showAddMenu(context),
-                child: const Icon(Icons.add),
-              ),
+            : null,
           body: Column(
             children: [
                if (!_isSearching)

@@ -231,13 +231,6 @@ class AccountingProvider with ChangeNotifier {
 
   /// Get PME allocated for a specific month across all budget periods
   double getPmeForMonth(String month) {
-    if (_budgetPeriods.isEmpty) {
-      // Fallback to old system
-      final center = activeCostCenter;
-      if (center == null) return 0;
-      return center.defaultPmeAmount;
-    }
-    
     double total = 0;
     for (var period in _budgetPeriods.where((p) => p.isActive)) {
       if (period.includesMonth(month)) {
@@ -251,10 +244,8 @@ class AccountingProvider with ChangeNotifier {
     final center = activeCostCenter;
     if (center == null) return 0;
 
-    // Use budget periods if available, otherwise fallback to cost center default
-    double oteAllocation = _budgetPeriods.isNotEmpty 
-        ? _getTotalOteFromPeriods() 
-        : center.defaultOteAmount;
+    // Use budget periods exclusively
+    double oteAllocation = _getTotalOteFromPeriods();
     
     // Only count donations that are MERGED to a category of type OTE
     double oteDonations = 0;
@@ -294,26 +285,8 @@ class AccountingProvider with ChangeNotifier {
     final center = activeCostCenter;
     if (center == null) return 0;
 
-    double pmeAllocationTotal;
-    
-    // Use budget periods if available, otherwise fallback to cost center default
-    if (_budgetPeriods.isNotEmpty) {
-      pmeAllocationTotal = _getTotalPmeFromPeriods();
-    } else {
-      // Fallback to old calculation
-      DateTime startDate;
-      try {
-        startDate = DateFormat('yyyy-MM').parse(center.pmeStartMonth);
-      } catch (_) {
-        startDate = DateTime(2026, 1);
-      }
-      
-      DateTime now = DateTime.now();
-      int monthsCount = (now.year - startDate.year) * 12 + (now.month - startDate.month) + 1;
-      if (monthsCount < 1) monthsCount = 1;
-
-      pmeAllocationTotal = center.defaultPmeAmount * monthsCount;
-    }
+    // Use budget periods exclusively
+    double pmeAllocationTotal = _getTotalPmeFromPeriods();
 
     // Only count donations that are MERGED to a category of type PME
     double pmeDonations = 0;
@@ -390,23 +363,37 @@ class AccountingProvider with ChangeNotifier {
     }
   }
 
-  /// Total Budget Remaining in the Cost Center (PME + OTE + General Wallet Funds)
+  /// Total Budget Remaining in the Cost Center (Temple Allocation + All Donations - Total Spent)
   double get costCenterBudgetBalance {
     final center = activeCostCenter;
     if (center == null) return 0;
 
-    // pmeBalance includes: (PME Allocation + PME Category Donations - PME Spending + PME Adjustments - Advances)
-    // oteBalance includes: (OTE Allocation + OTE Category Donations - OTE Spending + OTE Adjustments)
-    
-    // We only need to add donations that were NOT tied to a category (mode: WALLET)
-    double unallocatedDonations = _donations
-        .where((d) => d.mode == DonationMode.WALLET)
-        .fold(0, (sum, item) => sum + item.amount);
-        
-    // Note: wallet-source expenses are already subtracted within pmeBalance / oteBalance 
-    // because they are registered with a budgetType (PME/OTE).
+    // 1. Total Baseline Allocation from Temple
+    double totalPmeBaseline = 0;
+    for (var period in _budgetPeriods.where((p) => p.isActive)) {
+      for (var month in period.getAllMonths()) {
+        if (isMonthInPastOrCurrent(month)) {
+          totalPmeBaseline += period.defaultPmeAmount;
+        }
+      }
+    }
+    double totalOteBaseline = _getTotalOteFromPeriods(); // Assuming period OTE is the baseline
 
-    return pmeBalance + oteBalance + unallocatedDonations;
+    // 2. Total Donations (Earmarked + Wallet)
+    double totalDonations = _donations.fold(0.0, (sum, d) => sum + d.amount);
+
+    // 3. Total Expenses (Non-personal)
+    double totalExpenses = _expenses
+        .where((e) => e.moneySource != MoneySource.PERSONAL)
+        .fold(0.0, (sum, e) => sum + e.amount);
+
+    // 4. Adjustments
+    double adjustments = _getAdjustmentTotal(BudgetType.PME) + _getAdjustmentTotal(BudgetType.OTE);
+
+    // 5. Advances (Money out but not spent yet)
+    double advances = advanceUnsettled;
+
+    return totalPmeBaseline + totalOteBaseline + totalDonations - totalExpenses + adjustments - advances;
   }
 
   /// Wallet / Unallocated Balance (The "Petty Cash" or "General Fund")
@@ -415,18 +402,54 @@ class AccountingProvider with ChangeNotifier {
     final center = activeCostCenter;
     if (center == null) return 0;
 
-    double monthsCount = _getMonthsCount(center).toDouble();
-
     // 1. "remaining non budgeted" (Unallocated portion of the base budget)
-    double earmarkedPme = _categories
+    // For PME: (Total Baseline PME from Temple - Total Earmarked categories)
+    double totalPmeBaseline = 0;
+    int totalMonthsElapsedInPeriods = 0;
+    final Set<String> elapsedMonths = {};
+
+    for (var period in _budgetPeriods.where((p) => p.isActive)) {
+      for (var month in period.getAllMonths()) {
+        if (isMonthInPastOrCurrent(month)) {
+          elapsedMonths.add(month);
+          totalPmeBaseline += period.defaultPmeAmount; // Use baseline default
+        }
+      }
+    }
+    totalMonthsElapsedInPeriods = elapsedMonths.length;
+
+    double earmarkedPmeMonthly = _categories
         .where((c) => c.budgetType == BudgetType.PME)
         .fold(0, (sum, c) => sum + c.targetAmount);
-    double unallocatedPme = (center.defaultPmeAmount - earmarkedPme) * monthsCount;
+    
+    double unallocatedPme = 0;
+    // For PME: (Total Baseline PME from Temple - Total Budgeted PME)
+    // This represents the "Savings" diverted to the wallet by reducing the monthly budget.
+    final Set<String> months = {};
+    for (var p in _budgetPeriods.where((p) => p.isActive)) {
+      months.addAll(p.getAllMonths().where((m) => isMonthInPastOrCurrent(m)));
+    }
 
+    for (var m in months) {
+      double monthlyBaseline = 0;
+      double monthlyBudgeted = 0;
+      for (var p in _budgetPeriods.where((p) => p.isActive)) {
+        if (p.includesMonth(m)) {
+          monthlyBaseline += p.defaultPmeAmount;
+          monthlyBudgeted += p.getPmeForMonth(m);
+        }
+      }
+      if (monthlyBaseline > monthlyBudgeted) {
+        unallocatedPme += (monthlyBaseline - monthlyBudgeted);
+      }
+    }
+
+    // For OTE: (Total Budgeted OTE) - (Total Earmarked OTE Categories)
+    double totalOteAllocated = _getTotalOteFromPeriods();
     double earmarkedOte = _categories
         .where((c) => c.budgetType == BudgetType.OTE)
         .fold(0, (sum, c) => sum + c.targetAmount);
-    double unallocatedOte = center.defaultOteAmount - earmarkedOte;
+    double unallocatedOte = totalOteAllocated - earmarkedOte;
 
     // 2. "donation" (Donations specifically marked for Wallet)
     double walletDonations = _donations
@@ -461,8 +484,19 @@ class AccountingProvider with ChangeNotifier {
     final center = activeCostCenter;
     double budget = cat.targetAmount;
     
-    if (cat.budgetType == BudgetType.PME && center != null) {
-      budget = budget * _getMonthsCount(center);
+    if (cat.budgetType == BudgetType.PME) {
+      // Calculate budget for this category based on how many months have elapsed in active periods
+      int monthsCount = 0;
+      final Set<String> elapsedMonths = {};
+      for (var period in _budgetPeriods.where((p) => p.isActive)) {
+        for (var month in period.getAllMonths()) {
+          if (isMonthInPastOrCurrent(month)) {
+            elapsedMonths.add(month);
+          }
+        }
+      }
+      monthsCount = elapsedMonths.length;
+      budget = budget * monthsCount;
     }
 
     final donations = _donations
@@ -504,7 +538,7 @@ class AccountingProvider with ChangeNotifier {
     for (var period in _budgetPeriods) {
       if (period.isActive) {
         for (var month in period.getAllMonths()) {
-          if (_isMonthInPastOrCurrent(month)) {
+          if (isMonthInPastOrCurrent(month)) {
             total += period.getPmeForMonth(month);
           }
         }
@@ -519,7 +553,7 @@ class AccountingProvider with ChangeNotifier {
         .fold(0.0, (sum, p) => sum + p.oteAmount);
   }
 
-  bool _isMonthInPastOrCurrent(String month) {
+  bool isMonthInPastOrCurrent(String month) {
     try {
       final now = DateTime.now();
       final currentMonthVal = now.year * 100 + now.month;

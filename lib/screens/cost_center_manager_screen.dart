@@ -18,6 +18,7 @@ class _CostCenterManagerScreenState extends State<CostCenterManagerScreen> {
   double _defaultPme = 0;
   double _defaultOte = 0;
   String _pmeStartMonth = '2026-01';
+  String _pmeEndMonth = '2026-12';
 
   void _showAddDialog([CostCenter? center]) {
     if (center != null) {
@@ -26,12 +27,14 @@ class _CostCenterManagerScreenState extends State<CostCenterManagerScreen> {
       _defaultPme = center.defaultPmeAmount;
       _defaultOte = center.defaultOteAmount;
       _pmeStartMonth = center.pmeStartMonth;
+      _pmeEndMonth = center.pmeEndMonth;
     } else {
       _name = '';
       _remarks = '';
       _defaultPme = 0;
       _defaultOte = 0;
       _pmeStartMonth = '2026-01';
+      _pmeEndMonth = '2026-12';
     }
 
     showDialog(
@@ -44,33 +47,16 @@ class _CostCenterManagerScreenState extends State<CostCenterManagerScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextFormField(
-                  initialValue: _name,
-                  decoration: const InputDecoration(labelText: 'Name'),
-                  validator: (val) => val == null || val.isEmpty ? 'Required' : null,
-                  onSaved: (val) => _name = val!,
-                ),
-                TextFormField(
-                  initialValue: _defaultPme.toString(),
-                  decoration: const InputDecoration(labelText: 'Monthly PME Budget (₹)'),
-                  keyboardType: TextInputType.number,
-                  onSaved: (val) => _defaultPme = double.tryParse(val ?? '0') ?? 0,
-                ),
-                TextFormField(
-                  initialValue: _defaultOte.toString(),
-                  decoration: const InputDecoration(labelText: 'Total OTE Budget (₹)'),
-                  keyboardType: TextInputType.number,
-                  onSaved: (val) => _defaultOte = double.tryParse(val ?? '0') ?? 0,
-                ),
-                TextFormField(
-                  initialValue: _pmeStartMonth,
-                  decoration: const InputDecoration(labelText: 'PME Start Month (yyyy-MM)'),
-                  onSaved: (val) => _pmeStartMonth = val ?? '2026-01',
-                ),
-                TextFormField(
-                  initialValue: _remarks,
-                  decoration: const InputDecoration(labelText: 'Remarks'),
-                  onSaved: (val) => _remarks = val ?? '',
+                _buildRefinedField('Cost Center Name', _name, (val) => _name = val!, Icons.business),
+                const SizedBox(height: 16),
+                _buildRefinedField('Remarks', _remarks, (val) => _remarks = val!, Icons.notes, maxLines: 2),
+                const SizedBox(height: 24),
+                const Center(
+                  child: Text(
+                    'Budget values are managed per period in the "Manage Budgets" section.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic),
+                  ),
                 ),
               ],
             ),
@@ -91,6 +77,7 @@ class _CostCenterManagerScreenState extends State<CostCenterManagerScreen> {
                   defaultPmeAmount: _defaultPme,
                   defaultOteAmount: _defaultOte,
                   pmeStartMonth: _pmeStartMonth,
+                  pmeEndMonth: _pmeEndMonth,
                 );
                 final service = FirestoreService();
                 String action = center == null ? 'added' : 'updated';
@@ -147,6 +134,7 @@ class _CostCenterManagerScreenState extends State<CostCenterManagerScreen> {
                                 defaultPmeAmount: center.defaultPmeAmount,
                                 defaultOteAmount: center.defaultOteAmount,
                                 pmeStartMonth: center.pmeStartMonth,
+                                pmeEndMonth: center.pmeEndMonth,
                               );
                               FirestoreService().updateCostCenter(updated);
                             },
@@ -195,6 +183,38 @@ class _CostCenterManagerScreenState extends State<CostCenterManagerScreen> {
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddDialog(),
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+  Widget _buildRefinedField(String label, String initial, FormFieldSetter<String> onSaved, IconData icon, {int maxLines = 1}) {
+    return TextFormField(
+      initialValue: initial,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, size: 20, color: Colors.teal),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: true,
+        fillColor: Colors.teal.withOpacity(0.05),
+      ),
+      maxLines: maxLines,
+      validator: (val) => val == null || val.isEmpty ? 'Required' : null,
+      onSaved: onSaved,
+    );
+  }
+
+  Widget _buildRefinedNumberField(String label, double initial, Function(double) onSaved) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: TextFormField(
+        initialValue: initial.toString(),
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: const Icon(Icons.currency_rupee, size: 20, color: Colors.teal),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          isDense: true,
+        ),
+        keyboardType: TextInputType.number,
+        onSaved: (val) => onSaved(double.tryParse(val ?? '0') ?? 0),
       ),
     );
   }
