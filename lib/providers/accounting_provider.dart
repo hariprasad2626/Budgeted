@@ -600,6 +600,35 @@ class AccountingProvider with ChangeNotifier {
       await _service.updateCostCenterRealBalance(_activeCostCenterId!, amount);
     }
   }
+  // --- Category <-> Wallet Transfers ---
+  Future<void> transferBetweenCategoryAndWallet({
+    required String categoryId,
+    required double amount,
+    required bool isToWallet, // true = Category to Wallet, false = Wallet to Category
+    required String remarks,
+  }) async {
+    if (_activeCostCenterId == null) return;
+
+    // We represent these transfers using the existing FundTransfer model.
+    // However, the model needs to distinguish between "Category -> Unallocated (Wallet)" and "Unallocated (Wallet) -> Category".
+    // Convention:
+    // - From Category To Wallet: fromCategoryId = ID, toCategoryId = NULL
+    // - From Wallet To Category: fromCategoryId = NULL, toCategoryId = ID
+    
+    final transfer = FundTransfer(
+      id: '', // Service generates ID
+      costCenterId: _activeCostCenterId!,
+      amount: amount,
+      date: DateTime.now(),
+      remarks: remarks,
+      type: TransferType.CATEGORY_TO_CATEGORY,
+      fromCategoryId: isToWallet ? categoryId : null, // If to wallet, FROM is cat
+      toCategoryId: isToWallet ? null : categoryId,    // If from wallet, TO is cat
+    );
+
+    await _service.addFundTransfer(transfer);
+  }
+
   Map<String, Map<String, double>> getMonthlyPerformanceMetrics() {
     // Map<YYYY-MM, {pme_budget, ote_budget, pme_actual, ote_actual}>
     final Map<String, Map<String, double>> metrics = {};

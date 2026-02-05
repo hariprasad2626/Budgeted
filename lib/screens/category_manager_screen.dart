@@ -37,8 +37,8 @@ class CategoryManagerScreen extends StatelessWidget {
               children: [
                 TabBar(
                   tabs: [
-                    Tab(text: 'OTE (One-Time) (${oteCats.length})'),
-                    Tab(text: 'PME (Recurring) (${pmeCats.length})'),
+                    Tab(text: 'OTE (One-Time)'),
+                    Tab(text: 'PME (Recurring)'),
                   ],
                   indicatorColor: Colors.tealAccent,
                 ),
@@ -47,8 +47,8 @@ class CategoryManagerScreen extends StatelessWidget {
                       ? const Center(child: Text('No categories found. Click + to add.'))
                       : TabBarView(
                           children: [
-                            _buildCategoryList(context, provider, oteCats),
-                            _buildCategoryList(context, provider, pmeCats),
+                            _buildCategoryList(context, provider, oteCats, BudgetType.OTE),
+                            _buildCategoryList(context, provider, pmeCats, BudgetType.PME),
                           ],
                         ),
                 ),
@@ -64,7 +64,21 @@ class CategoryManagerScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCategoryList(BuildContext context, AccountingProvider provider, List<BudgetCategory> items) {
+  Widget _buildCategoryList(BuildContext context, AccountingProvider provider, List<BudgetCategory> items, BudgetType type) {
+    // Calculate Totals for Summary
+    double totalBudget = 0;
+    double totalSpent = 0;
+    
+    // We iterate items to sum up statuses
+    for (var cat in items) {
+      final status = provider.getCategoryStatus(cat);
+      totalBudget += status['total_limit'] ?? 0;
+      totalSpent += status['spent'] ?? 0;
+    }
+    
+    double progress = totalBudget > 0 ? (totalSpent / totalBudget).clamp(0.0, 1.0) : 0.0;
+    bool isOver = totalSpent > totalBudget;
+
     if (items.isEmpty) {
       return const Center(child: Text('No categories in this section.'));
     }
@@ -78,10 +92,84 @@ class CategoryManagerScreen extends StatelessWidget {
     // Sort groups by name
     final sortedKeys = grouped.keys.toList()..sort();
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-      itemCount: sortedKeys.length,
-      itemBuilder: (context, index) {
+    return Column(
+      children: [
+        // Summary Card
+        Card(
+          margin: const EdgeInsets.all(16),
+          color: Theme.of(context).colorScheme.tertiaryContainer,
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Total ${type.name} Budget', 
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        color: Theme.of(context).colorScheme.onTertiaryContainer
+                      )
+                    ),
+                    Text(
+                      '₹${totalBudget.toStringAsFixed(0)}', 
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        fontSize: 16,
+                        color: Theme.of(context).colorScheme.onTertiaryContainer
+                      )
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Total Spent', style: TextStyle(color: Theme.of(context).colorScheme.onTertiaryContainer.withOpacity(0.7))),
+                    Text(
+                      '₹${totalSpent.toStringAsFixed(0)}', 
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        color: isOver ? Colors.red : Theme.of(context).colorScheme.onTertiaryContainer
+                      )
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Pending Balance', style: TextStyle(color: Theme.of(context).colorScheme.onTertiaryContainer.withOpacity(0.7))),
+                    Text(
+                      '₹${(totalBudget - totalSpent).toStringAsFixed(0)}', 
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        color: (totalBudget - totalSpent) < 0 ? Colors.red : Colors.green.shade800
+                      )
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 8,
+                    backgroundColor: Colors.white.withOpacity(0.5),
+                    valueColor: AlwaysStoppedAnimation<Color>(isOver ? Colors.red : Colors.teal),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
+            itemCount: sortedKeys.length,
+            itemBuilder: (context, index) {
         final mainCategory = sortedKeys[index];
         final subItems = grouped[mainCategory]!;
 
@@ -92,13 +180,23 @@ class CategoryManagerScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
               child: Row(
                 children: [
-                  Container(width: 4, height: 16, color: Colors.tealAccent, margin: const EdgeInsets.only(right: 8)),
+                  Container(
+                    width: 4, 
+                    height: 16, 
+                    color: Theme.of(context).colorScheme.primary, 
+                    margin: const EdgeInsets.only(right: 8)
+                  ),
                   Text(
                     mainCategory.toUpperCase(),
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1.2, color: Colors.tealAccent),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold, 
+                      fontSize: 14, 
+                      letterSpacing: 1.2, 
+                      color: Theme.of(context).colorScheme.primary
+                    ),
                   ),
                   const Spacer(),
-                  Text('${subItems.length} items', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                  Text('${subItems.length} items', style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color, fontSize: 12)),
                 ],
               ),
             ),
@@ -142,6 +240,24 @@ class CategoryManagerScreen extends StatelessWidget {
                               ),
                               Row(
                                 children: [
+                                  // Transfer Buttons
+                                  IconButton(
+                                    icon: const Icon(Icons.arrow_upward, size: 20, color: Colors.orangeAccent),
+                                    tooltip: 'Move Remaining to Wallet',
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    onPressed: () => _showTransferDialog(context, cat, true),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    icon: const Icon(Icons.arrow_downward, size: 20, color: Colors.greenAccent),
+                                    tooltip: 'Add Funds from Wallet',
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    onPressed: () => _showTransferDialog(context, cat, false),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  // Existing Buttons
                                   IconButton(
                                     icon: const Icon(Icons.copy, size: 20, color: Colors.lightBlueAccent),
                                     tooltip: 'Duplicate',
@@ -175,7 +291,7 @@ class CategoryManagerScreen extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(2),
                                   child: LinearProgressIndicator(
                                     value: progress,
-                                    backgroundColor: Colors.white10,
+                                    backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.grey.shade300,
                                     valueColor: AlwaysStoppedAnimation<Color>(
                                       isOver ? Colors.redAccent : (progress > 0.8 ? Colors.orangeAccent : Colors.teal),
                                     ),
@@ -184,9 +300,21 @@ class CategoryManagerScreen extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              Text(
-                                '₹${spent.toStringAsFixed(0)} / ₹${totalLimit.toStringAsFixed(0)}',
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    '₹${spent.toStringAsFixed(0)} / ₹${totalLimit.toStringAsFixed(0)}',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    'Pending: ₹${(totalLimit - spent).toStringAsFixed(0)}',
+                                    style: TextStyle(
+                                      fontSize: 11, 
+                                      color: (totalLimit - spent) < 0 ? Colors.redAccent : Colors.green
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -195,35 +323,81 @@ class CategoryManagerScreen extends StatelessWidget {
                     ),
                   ),
                 );
-            }),
-            const SizedBox(height: 12),
+
+            }).toList(),
           ],
         );
       },
+    ),
+  ),
+],
     );
   }
 
-  // ... (Keep _showTransactions, _showDeleteConfirm, _showEditDialog as is or assumes they are untouched by this replacement range if I scope correctly, but I need to be careful with range)
-  // I will skip replacing intermediate methods if I can, but I need to replace _showAddDialog which is at the end.
-  // I'll assume I replace from _buildCategoryList start to end of file, effectively overwriting _showAddDialog too.
-  
-  // Wait, I need to keep _showTransactions + _showDeleteConfirm + _showEditDialog.
-  // I will target _buildCategoryList separately, and _showAddDialog separately.
 
-  // NOTE: I am not including the intermediate methods in this replacement block.
-  // I will split this into two calls or use multi-replace.
 
-  // Call 1: _buildCategoryList
-  // Call 2: _showAddDialog (and FloatingActionButton update).
-  // Ah, FAB is in build. I can't update FAB simply without replacing build or using the fact that I'm updating _showAddDialog signature?
-  // Actually, Dart supports named args. `_showAddDialog(context)` is valid even if I add `template` as optional named.
-  // So I don't need to change the FAB call site if the new arg is optional.
-  
-  // Revised Plan:
-  // 1. Replace `_buildCategoryList`.
-  // 2. Replace `_showAddDialog` with new signature `_showAddDialog(BuildContext context, {BudgetCategory? template})`.
-  
-  // Let's do multi_replace.
+  void _showTransferDialog(BuildContext context, BudgetCategory cat, bool isToWallet) {
+    final amountController = TextEditingController();
+    final remarksController = TextEditingController();
+
+    // Default amount: remaining for "To Wallet", 0 for "From Wallet"
+    // For "To Wallet", we probably want to move EVERYTHING remaining by default
+    if (isToWallet) {
+       final provider = Provider.of<AccountingProvider>(context, listen: false);
+       final status = provider.getCategoryStatus(cat);
+       final remaining = status['remaining'] ?? 0.0;
+       if (remaining > 0) {
+         amountController.text = remaining.toStringAsFixed(0);
+       }
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isToWallet ? 'Move to Wallet' : 'Add from Wallet'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Processing for: ${cat.subCategory}'),
+            const SizedBox(height: 10),
+            TextField(
+              controller: amountController,
+              decoration: const InputDecoration(labelText: 'Amount (₹)'),
+              keyboardType: TextInputType.number,
+            ),
+            TextField(
+              controller: remarksController,
+              decoration: const InputDecoration(labelText: 'Remarks (Optional)'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () async {
+              final amount = double.tryParse(amountController.text) ?? 0.0;
+              if (amount <= 0) return;
+
+              final provider = Provider.of<AccountingProvider>(context, listen: false);
+              
+              await provider.transferBetweenCategoryAndWallet(
+                categoryId: cat.id,
+                amount: amount,
+                isToWallet: isToWallet,
+                remarks: remarksController.text,
+              );
+              
+              if (context.mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Transfer Successful!')));
+              }
+            },
+            child: const Text('Transfer'),
+          )
+        ],
+      ),
+    );
+  }
 
   void _showTransactions(BuildContext context, BudgetCategory cat) {
     final provider = Provider.of<AccountingProvider>(context, listen: false);

@@ -359,12 +359,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
          if (amount > remaining) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Strict Rule: Information blocked! Expense (₹${amount.toStringAsFixed(0)}) exceeds remaining budget (₹${remaining.toStringAsFixed(0)}) for ${cat.subCategory}.'),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 4),
+                content: Text('Warning: Expense (₹${amount.toStringAsFixed(0)}) exceeds remaining budget (₹${remaining.toStringAsFixed(0)}) for ${cat.subCategory}. Proceeding anyway.'),
+                backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 3),
               )
             );
-            return;
+            // return; // STRICT RULE DISABLED: Allow proceeding
          }
        } catch (_) {
          // Category might not be found or other error, assume allow or block? 
