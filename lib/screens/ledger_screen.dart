@@ -115,11 +115,13 @@ class _LedgerScreenState extends State<LedgerScreen> {
             // OTE Surplus for Wallet
             double totalOteBudgeted = activePeriods.fold(0.0, (sum, p) => sum + p.oteAmount);
             if (totalOteBudgeted > earmarkedOte) {
+              final now = DateTime.now();
+              final dayDate = DateTime(now.year, now.month, now.day);
               budgetEntries.add({
                 'type': 'Budget',
                 'source': 'OTE Surplus',
                 'amount': totalOteBudgeted - earmarkedOte,
-                'date': DateTime.now(),
+                'date': dayDate,
                 'title': 'OTE Surplus Gap',
                 'color': Colors.tealAccent,
                 'item': null,
@@ -448,11 +450,16 @@ class _LedgerScreenState extends State<LedgerScreen> {
 
         // Assign stable unique keys for selection
         for (int i = 0; i < allEntries.length; i++) {
-          final item = allEntries[i]['item'];
+          final entry = allEntries[i];
+          final item = entry['item'];
+          final type = entry['type'];
+          
           if (item != null && item.id != null) {
-            allEntries[i]['uniqueKey'] = item.id;
+            // Include type to distinguish between related entries for the same item (e.g., Expense and Settlement)
+            entry['uniqueKey'] = '${type}_${item.id}';
           } else {
-            allEntries[i]['uniqueKey'] = 'syn_${allEntries[i]['title']}_${allEntries[i]['date'].toString()}_$i';
+            // For synthetic entries, use title and date (which we've ensured is stable where needed)
+            entry['uniqueKey'] = 'syn_${type}_${entry['title']}_${(entry['date'] as DateTime).millisecondsSinceEpoch}';
           }
         }
 
