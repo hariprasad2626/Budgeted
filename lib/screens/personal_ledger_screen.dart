@@ -264,32 +264,32 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
                   width: double.infinity,
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.teal.withOpacity(0.1),
+                    color: provider.isDarkMode ? Colors.teal.withOpacity(0.1) : Colors.teal.shade50,
                     border: Border(bottom: BorderSide(color: Colors.teal.withOpacity(0.3))),
                   ),
                   child: Column(
                     children: [
-                      const Text('Current Pocket Balance', style: TextStyle(fontSize: 14, color: Colors.tealAccent)),
+                      Text('Current Pocket Balance', style: TextStyle(fontSize: 14, color: provider.isDarkMode ? Colors.tealAccent : Colors.teal.shade800)),
                       const SizedBox(height: 4),
                       Text(
                         '₹${provider.personalBalance.toStringAsFixed(2)}',
-                        style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
+                        style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: provider.isDarkMode ? Colors.white : Colors.teal.shade900),
                       ),
-                      const Text('Balance includes all advances and unssettled expenses.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      Text('Balance includes all advances and unssettled expenses.', style: TextStyle(fontSize: 12, color: provider.isDarkMode ? Colors.grey : Colors.grey.shade700)),
                       if (hasSelection) ...[
-                        const Divider(height: 24, color: Colors.white24),
+                        Divider(height: 24, color: provider.isDarkMode ? Colors.white24 : Colors.teal.withOpacity(0.3)),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text('Selected Sum:', style: TextStyle(fontSize: 14, color: Colors.tealAccent, fontWeight: FontWeight.bold)),
+                            Text('Selected Sum:', style: TextStyle(fontSize: 14, color: provider.isDarkMode ? Colors.tealAccent : Colors.teal.shade800, fontWeight: FontWeight.bold)),
                             Row(
                               children: [
                                 Text(
                                   '₹${totalSelectionSum.toStringAsFixed(2)}',
-                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.tealAccent),
+                                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: provider.isDarkMode ? Colors.tealAccent : Colors.teal.shade800),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+                                  icon: Icon(Icons.close, size: 18, color: provider.isDarkMode ? Colors.grey : Colors.grey.shade700),
                                   onPressed: () => setState(() {
                                     _selectedExpenseIds.clear();
                                     _selectedHistoryIds.clear();
@@ -353,7 +353,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Text(
                 centerName,
-                style: TextStyle(color: Colors.teal.shade200, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.1),
+                style: TextStyle(color: provider.isDarkMode ? Colors.teal.shade200 : Colors.teal.shade800, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.1),
               ),
             ),
             ...centerExpenses.map((e) {
@@ -381,9 +381,9 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
                           children: [
                             Text(DateFormat('dd MMM').format(e.date), style: const TextStyle(fontSize: 12, color: Colors.grey)),
                             const SizedBox(height: 2),
-                            Text(e.remarks, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                            Text(e.remarks, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: provider.isDarkMode ? null : Colors.black87)),
                             const SizedBox(height: 2),
-                            Text('$centerName -> $catPath', style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                            Text('$centerName -> $catPath', style: TextStyle(fontSize: 12, color: provider.isDarkMode ? Colors.white70 : Colors.black54)),
                           ],
                         ),
                       ),
@@ -396,7 +396,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
                 ),
               );
             }).toList(),
-            const Divider(),
+            Divider(color: provider.isDarkMode ? null : Colors.grey.shade300),
           ],
         );
       },
@@ -407,128 +407,123 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
     if (entries.isEmpty) {
       return Center(child: Text(_searchQuery.isNotEmpty ? 'No matches found.' : 'No history found.'));
     }
-    return ListView.separated(
-      itemCount: entries.length,
-      separatorBuilder: (_, __) => const Divider(height: 1, indent: 16, endIndent: 16),
-      itemBuilder: (context, index) {
-        final entry = entries[index];
-        final amount = entry['amount'] as double;
-        final isPositive = amount > 0;
-        final title = entry['title'] as String;
-        final subtitle = entry['subtitle'] as String; // Context path
-        final dateLine = entry['dateLine'] as String;
-        final meta = entry['meta']; // For Transfers, remarks are here
+    return Consumer<AccountingProvider>(
+      builder: (context, provider, child) {
+        return ListView.separated(
+          itemCount: entries.length,
+          separatorBuilder: (_, __) => Divider(height: 1, indent: 16, endIndent: 16, color: provider.isDarkMode ? null : Colors.grey.shade300),
+          itemBuilder: (context, index) {
+            final entry = entries[index];
+            final amount = entry['amount'] as double;
+            final isPositive = amount > 0;
+            final title = entry['title'] as String;
+            final subtitle = entry['subtitle'] as String; // Context path
+            final dateLine = entry['dateLine'] as String;
+            final meta = entry['meta']; // For Transfers, remarks are here
 
-        final String uniqueId = entry['uniqueKey'];
-        final bool isSelected = _selectedHistoryIds.contains(uniqueId);
+            final String uniqueId = entry['uniqueKey'];
+            final bool isSelected = _selectedHistoryIds.contains(uniqueId);
 
-        return InkWell(
-          onTap: () {
-            setState(() {
-              if (isSelected) {
-                _selectedHistoryIds.remove(uniqueId);
-              } else {
-                _selectedHistoryIds.add(uniqueId);
-              }
-            });
-          },
-          onLongPress: () => _showEntryDetails(context, entry['item'], entry['type']),
-          child: Container(
-            color: isSelected ? Colors.teal.withOpacity(0.1) : null,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                // Checkbox for summing
-                SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: Checkbox(
-                    value: isSelected,
-                    onChanged: (val) {
-                      setState(() {
-                        if (val == true) {
-                          _selectedHistoryIds.add(uniqueId);
-                        } else {
-                          _selectedHistoryIds.remove(uniqueId);
-                        }
-                      });
-                    },
-                    activeColor: Colors.tealAccent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Icon Circle
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: (entry['color'] as Color).withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    isPositive ? Icons.arrow_downward : Icons.arrow_upward,
-                    color: entry['color'],
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Details
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        dateLine,
-                        style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        title,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (subtitle.isNotEmpty) 
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            subtitle,
-                            style: const TextStyle(color: Colors.white60, fontSize: 12),
-                          ),
-                        ),
-                      if (meta != null && meta.toString().isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            meta,
-                            style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.white70),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Amount
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+            return InkWell(
+              onTap: () => _showEntryDetails(context, entry['item'], entry['type']),
+              child: Container(
+                color: isSelected ? Colors.teal.withOpacity(0.1) : null,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
                   children: [
-                    Text(
-                      '${isPositive ? '+' : '-'}${amount.abs().toStringAsFixed(0)}',
-                      style: TextStyle(color: isPositive ? Colors.greenAccent : Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 16),
+                    // Checkbox for summing
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Checkbox(
+                        value: isSelected,
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true) {
+                              _selectedHistoryIds.add(uniqueId);
+                            } else {
+                              _selectedHistoryIds.remove(uniqueId);
+                            }
+                          });
+                        },
+                        activeColor: Colors.tealAccent,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                      ),
                     ),
-                    if (entry['type'] == 'Expense')
-                       const Padding(
-                         padding: EdgeInsets.only(top: 4),
-                         child: Text('Settled', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                       ),
+                    const SizedBox(width: 8),
+                    // Icon Circle
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: (entry['color'] as Color).withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        isPositive ? Icons.arrow_downward : Icons.arrow_upward,
+                        color: entry['color'],
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Details
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            dateLine,
+                            style: TextStyle(color: provider.isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600, fontSize: 11),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            title,
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: provider.isDarkMode ? null : Colors.black87),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (subtitle.isNotEmpty) 
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                subtitle,
+                                style: TextStyle(color: provider.isDarkMode ? Colors.white60 : Colors.black54, fontSize: 12),
+                              ),
+                            ),
+                          if (meta != null && meta.toString().isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                meta,
+                                style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: provider.isDarkMode ? Colors.white70 : Colors.black54),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Amount
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '${isPositive ? '+' : '-'}${amount.abs().toStringAsFixed(0)}',
+                          style: TextStyle(color: isPositive ? Colors.greenAccent : Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        if (entry['type'] == 'Expense')
+                           Padding(
+                             padding: const EdgeInsets.only(top: 4),
+                             child: Text('Settled', style: TextStyle(fontSize: 10, color: provider.isDarkMode ? Colors.grey : Colors.grey.shade600)),
+                           ),
+                      ],
+                    ),
                   ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
-      },
+      }
     );
   }
 

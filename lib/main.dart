@@ -64,7 +64,7 @@ class MyApp extends StatelessWidget {
     return Consumer<AccountingProvider>(
       builder: (context, provider, child) {
         return MaterialApp(
-          title: 'Budgeted',
+          title: 'Accounts',
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(
               seedColor: Colors.teal, 
@@ -148,10 +148,10 @@ class AccessDeniedScreen extends StatelessWidget {
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'Your email is not on the approved whitelist. Please contact the administrator.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white70),
+                style: TextStyle(color: Theme.of(context).brightness == Brightness.dark ? Colors.white70 : Colors.black54),
               ),
               const SizedBox(height: 32),
               ElevatedButton(

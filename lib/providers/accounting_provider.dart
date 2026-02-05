@@ -11,13 +11,15 @@ import '../models/personal_adjustment.dart';
 import '../models/cost_center_adjustment.dart';
 import '../models/fixed_amount.dart';
 import '../models/budget_period.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firestore_service.dart';
 
 class AccountingProvider with ChangeNotifier {
   final FirestoreService _service = FirestoreService();
 
-  List<CostCenter> _costCenters = [];
+
   String? _activeCostCenterId;
+  List<CostCenter> _costCenters = [];
 
   List<BudgetCategory> _categories = [];
   List<BudgetAllocation> _allocations = [];
@@ -43,9 +45,17 @@ class AccountingProvider with ChangeNotifier {
   bool _isDarkMode = true;
   bool get isDarkMode => _isDarkMode;
 
-  void toggleTheme() {
+  Future<void> loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    _isDarkMode = prefs.getBool('isDarkMode') ?? true;
+    notifyListeners();
+  }
+
+  void toggleTheme() async {
     _isDarkMode = !_isDarkMode;
     notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isDarkMode', _isDarkMode);
   }
   
   CostCenter? get activeCostCenter => _costCenters.isEmpty 
@@ -82,6 +92,7 @@ class AccountingProvider with ChangeNotifier {
   AccountingProvider() {
     _initGlobal();
     _initCostCenters();
+    loadTheme();
   }
 
   void _initGlobal() {

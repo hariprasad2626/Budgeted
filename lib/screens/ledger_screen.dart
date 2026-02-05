@@ -432,28 +432,28 @@ class _LedgerScreenState extends State<LedgerScreen> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
-                color: Colors.white10,
+                color: provider.isDarkMode ? Colors.white10 : Colors.grey.shade200,
                 child: Column(
                    children: [
-                    Text(headerTitle, style: const TextStyle(fontSize: 14)),
+                    Text(headerTitle, style: TextStyle(fontSize: 14, color: provider.isDarkMode ? null : Colors.black87)),
                     Text(
                       '₹${displayBalance.toStringAsFixed(2)}',
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.amber),
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: provider.isDarkMode ? Colors.amber : Colors.amber.shade800),
                     ),
                     if (_selectedLedgerIds.isNotEmpty) ...[
-                      const Divider(height: 24, color: Colors.white24),
+                      Divider(height: 24, color: provider.isDarkMode ? Colors.white24 : Colors.grey.shade400),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Selected Sum:', style: TextStyle(fontSize: 14, color: Colors.tealAccent, fontWeight: FontWeight.bold)),
+                          Text('Selected Sum:', style: TextStyle(fontSize: 14, color: provider.isDarkMode ? Colors.tealAccent : Colors.teal.shade700, fontWeight: FontWeight.bold)),
                           Row(
                             children: [
                               Text(
                                 '₹${selectedSum.toStringAsFixed(2)}',
-                                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.tealAccent),
+                                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: provider.isDarkMode ? Colors.tealAccent : Colors.teal.shade700),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+                                icon: Icon(Icons.close, size: 18, color: provider.isDarkMode ? Colors.grey : Colors.grey.shade700),
                                 onPressed: () => setState(() => _selectedLedgerIds.clear()),
                               ),
                             ],
@@ -485,9 +485,9 @@ class _LedgerScreenState extends State<LedgerScreen> {
                             borderSide: BorderSide.none,
                           ),
                           filled: true,
-                          fillColor: Colors.white.withOpacity(0.05),
+                          fillColor: provider.isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade200,
                         ),
-                        style: const TextStyle(fontSize: 14),
+                        style: TextStyle(fontSize: 14, color: provider.isDarkMode ? null : Colors.black87),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -508,10 +508,10 @@ class _LedgerScreenState extends State<LedgerScreen> {
                       icon: Icon(
                         Icons.calendar_today, 
                         size: 20,
-                        color: _selectedDateRange != null ? Colors.amberAccent : Colors.white,
+                        color: _selectedDateRange != null ? Colors.amberAccent : (provider.isDarkMode ? Colors.white : Colors.black54),
                       ),
                       style: IconButton.styleFrom(
-                        backgroundColor: _selectedDateRange != null ? Colors.amber.withOpacity(0.2) : Colors.white.withOpacity(0.05),
+                        backgroundColor: _selectedDateRange != null ? Colors.amber.withOpacity(0.2) : (provider.isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade200),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
@@ -532,7 +532,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
                 child: ListView.separated(
                   itemCount: allEntries.length,
                   padding: const EdgeInsets.symmetric(vertical: 8),
-                  separatorBuilder: (context, index) => const Divider(height: 1),
+                  separatorBuilder: (context, index) => Divider(height: 1, color: provider.isDarkMode ? null : Colors.grey.shade300),
                   itemBuilder: (context, index) {
                     final entry = allEntries[index];
                     final date = entry['date'] as DateTime;
@@ -549,16 +549,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
                     final bool isSelected = _selectedLedgerIds.contains(uniqueKey);
 
                     return InkWell(
-                        onTap: () {
-                          setState(() {
-                            if (isSelected) {
-                              _selectedLedgerIds.remove(uniqueKey);
-                            } else {
-                              _selectedLedgerIds.add(uniqueKey);
-                            }
-                          });
-                        },
-                        onLongPress: () => _showEntryDetails(context, item, type),
+                        onTap: () => _showEntryDetails(context, item, type),
                         child: Container(
                           color: isSelected ? Colors.teal.withOpacity(0.1) : null,
                           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
@@ -606,19 +597,19 @@ class _LedgerScreenState extends State<LedgerScreen> {
                                   children: [
                                     Text(
                                       DateFormat('MMM dd, yyyy').format(date),
-                                      style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                                      style: TextStyle(color: provider.isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600, fontSize: 11),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       title,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: provider.isDarkMode ? null : Colors.black87),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       entry.containsKey('categoryPath') ? entry['categoryPath'] : '$type • $source',
-                                      style: const TextStyle(color: Colors.white60, fontSize: 12),
+                                      style: TextStyle(color: provider.isDarkMode ? Colors.white60 : Colors.grey.shade700, fontSize: 12),
                                     ),
                                   ],
                                 ),

@@ -97,7 +97,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                 : ListView.separated(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     itemCount: sortedItems.length,
-                    separatorBuilder: (context, index) => const Divider(color: Colors.white10, height: 1),
+                    separatorBuilder: (context, index) => Divider(color: provider.isDarkMode ? Colors.white10 : Colors.grey.shade300, height: 1),
                     itemBuilder: (context, index) {
                       final item = sortedItems[index];
                       final bool isSelected = _selectedIds.contains(item.id);
@@ -171,16 +171,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                       }
 
                       return InkWell(
-                        onTap: () {
-                          setState(() {
-                            if (isSelected) {
-                              _selectedIds.remove(item.id);
-                            } else {
-                              _selectedIds.add(item.id);
-                            }
-                          });
-                        },
-                        onLongPress: () => widget.showEntryDetails(context, item, widget.type == 'PersonalAdjustment' ? 'Adjustment' : widget.type),
+                        onTap: () => widget.showEntryDetails(context, item, widget.type == 'PersonalAdjustment' ? 'Adjustment' : widget.type),
                         child: Container(
                           color: isSelected ? Colors.teal.withOpacity(0.1) : null,
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -219,18 +210,20 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                 ),
                               ),
                               const SizedBox(width: 16),
+
+
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       DateFormat('MMM dd, yyyy').format(item.date),
-                                      style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                                      style: TextStyle(color: provider.isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600, fontSize: 11),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       item.remarks,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: provider.isDarkMode ? null : Colors.black87),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
@@ -239,7 +232,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                         padding: const EdgeInsets.only(top: 4),
                                         child: Text(
                                           categoryLabel,
-                                          style: const TextStyle(color: Colors.white60, fontSize: 12),
+                                          style: TextStyle(color: provider.isDarkMode ? Colors.white60 : Colors.black54, fontSize: 12),
                                         ),
                                       ),
                                   ],
