@@ -8,6 +8,7 @@ import '../models/expense.dart';
 import '../models/personal_adjustment.dart';
 import '../models/cost_center_adjustment.dart';
 import '../models/fixed_amount.dart';
+import '../models/budget_period.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -226,5 +227,28 @@ class FirestoreService {
           'real_balance': amount, 
           'updatedAt': FieldValue.serverTimestamp()
         }, SetOptions(merge: true));
+  }
+
+  // --- Budget Periods (Filtered by Cost Center) ---
+  Stream<List<BudgetPeriod>> getBudgetPeriods(String costCenterId) {
+    return _db
+        .collection('budget_periods')
+        .where('costCenterId', isEqualTo: costCenterId)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => BudgetPeriod.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+            .toList());
+  }
+
+  Future<void> addBudgetPeriod(BudgetPeriod period) {
+    return _db.collection('budget_periods').add(period.toMap());
+  }
+
+  Future<void> updateBudgetPeriod(BudgetPeriod period) {
+    return _db.collection('budget_periods').doc(period.id).update(period.toMap());
+  }
+
+  Future<void> deleteBudgetPeriod(String id) {
+    return _db.collection('budget_periods').doc(id).delete();
   }
 }

@@ -125,41 +125,68 @@ class _CostCenterManagerScreenState extends State<CostCenterManagerScreen> {
             itemCount: centers.length,
             itemBuilder: (context, index) {
               final center = centers[index];
-              return ListTile(
-                title: Text(center.name),
-                subtitle: Text('PME: ₹${center.defaultPmeAmount}/mo | OTE: ₹${center.defaultOteAmount}\n${center.remarks}'),
-                isThreeLine: true,
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: Column(
                   children: [
-                    Switch(
-                      value: center.isActive,
-                      onChanged: (val) {
-                        final updated = CostCenter(
-                          id: center.id,
-                          name: center.name,
-                          isActive: val,
-                          createdAt: center.createdAt,
-                          remarks: center.remarks,
-                          defaultPmeAmount: center.defaultPmeAmount,
-                          defaultOteAmount: center.defaultOteAmount,
-                          pmeStartMonth: center.pmeStartMonth,
+                    ListTile(
+                      title: Text(center.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(center.remarks.isEmpty ? 'No remarks' : center.remarks),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Switch(
+                            value: center.isActive,
+                            onChanged: (val) {
+                              final updated = CostCenter(
+                                id: center.id,
+                                name: center.name,
+                                isActive: val,
+                                createdAt: center.createdAt,
+                                remarks: center.remarks,
+                                defaultPmeAmount: center.defaultPmeAmount,
+                                defaultOteAmount: center.defaultOteAmount,
+                                pmeStartMonth: center.pmeStartMonth,
+                              );
+                              FirestoreService().updateCostCenter(updated);
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () => _showAddDialog(center),
+                          ),
+                        ],
+                      ),
+                      onTap: () {
+                        provider.setActiveCostCenter(center.id);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Switched to ${center.name}')),
                         );
-                        FirestoreService().updateCostCenter(updated);
                       },
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.edit),
-                      onPressed: () => _showAddDialog(center),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Budget Periods', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                          TextButton.icon(
+                            onPressed: () {
+                              provider.setActiveCostCenter(center.id);
+                              Navigator.pushNamed(context, '/manage-budget-periods');
+                            },
+                            icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
+                            label: const Text('Manage Budgets'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.teal,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-                onTap: () {
-                  provider.setActiveCostCenter(center.id);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Switched to ${center.name}')),
-                  );
-                },
               );
             },
           );

@@ -12,6 +12,7 @@ import 'screens/category_manager_screen.dart';
 import 'screens/budget_allocation_screen.dart';
 import 'screens/fixed_amounts_manager_screen.dart';
 import 'screens/cost_center_manager_screen.dart';
+import 'screens/budget_period_manager_screen.dart';
 import 'firebase_options.dart';
 import 'screens/reports_screen.dart';
 import 'screens/ledger_screen.dart';
@@ -86,6 +87,7 @@ class MyApp extends StatelessWidget {
             '/manage-allocations': (context) => const BudgetAllocationScreen(),
             '/fixed-amounts': (context) => const FixedAmountsManagerScreen(),
             '/manage-cost-centers': (context) => const CostCenterManagerScreen(),
+            '/manage-budget-periods': (context) => const BudgetPeriodManagerScreen(),
             '/reports': (context) => const ReportsScreen(),
             '/ledger': (context) => const LedgerScreen(),
             '/personal-ledger': (context) => const PersonalLedgerScreen(),

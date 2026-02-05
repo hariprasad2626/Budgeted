@@ -2,34 +2,11 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
+import 'update_service_stub.dart'
+    if (dart.library.html) 'update_service_web.dart' as platform;
 
 class UpdateService {
   static const String _versionUrl = 'version.json';
-  static const String _prefsKey = 'app_build_timestamp';
-
-  /// Gets the stored timestamp from localStorage
-  static int _getLocalTimestamp() {
-    try {
-      final stored = html.window.localStorage[_prefsKey];
-      if (stored != null) {
-        return int.tryParse(stored) ?? 0;
-      }
-    } catch (e) {
-      debugPrint('Error reading localStorage: $e');
-    }
-    return 0;
-  }
-
-  /// Saves the timestamp to localStorage
-  static void _setLocalTimestamp(int timestamp) {
-    try {
-      html.window.localStorage[_prefsKey] = timestamp.toString();
-    } catch (e) {
-      debugPrint('Error writing localStorage: $e');
-    }
-  }
 
   /// Checks for updates by comparing local timestamp with server timestamp
   static Future<void> checkForUpdate(BuildContext context, {bool manual = false}) async {
@@ -44,8 +21,8 @@ class UpdateService {
         final int serverTimestamp = serverData['timestamp'] ?? 0;
         final String serverVersion = serverData['version'] ?? 'Unknown';
 
-        // 2. Get local timestamp from localStorage
-        final int localTimestamp = _getLocalTimestamp();
+        // 2. Get local timestamp from platform-specific storage
+        final int localTimestamp = platform.getLocalTimestamp();
 
         debugPrint('Update Check: Local=$localTimestamp, Server=$serverTimestamp');
 
@@ -55,7 +32,7 @@ class UpdateService {
         // UNLESS this is a manual check, in which case we might be on a stale cached version.
         if (localTimestamp == 0 && !manual) {
            // Fresh start auto-check: assume we are up to date to avoid annoying new users.
-           _setLocalTimestamp(serverTimestamp);
+           platform.setLocalTimestamp(serverTimestamp);
            hasNewVersion = false; 
         }
 
@@ -75,8 +52,8 @@ class UpdateService {
                     ),
                   ElevatedButton(
                     onPressed: () async {
-                       _setLocalTimestamp(serverTimestamp);
-                       html.window.location.reload();
+                       platform.setLocalTimestamp(serverTimestamp);
+                       platform.reloadPage();
                     },
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
                     child: const Text('Update Now', style: TextStyle(color: Colors.white)),

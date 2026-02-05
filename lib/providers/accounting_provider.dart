@@ -10,6 +10,7 @@ import '../models/expense.dart';
 import '../models/personal_adjustment.dart';
 import '../models/cost_center_adjustment.dart';
 import '../models/fixed_amount.dart';
+import '../models/budget_period.dart';
 import '../services/firestore_service.dart';
 
 class AccountingProvider with ChangeNotifier {
@@ -29,6 +30,7 @@ class AccountingProvider with ChangeNotifier {
   List<CostCenterAdjustment> _centerAdjustments = [];
   List<Expense> _allExpenses = [];
   List<FixedAmount> _fixedAmounts = [];
+  List<BudgetPeriod> _budgetPeriods = [];
   double _realBalance = 0;
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
@@ -59,6 +61,7 @@ class AccountingProvider with ChangeNotifier {
   List<CostCenterAdjustment> get centerAdjustments => _centerAdjustments;
   List<Expense> get allExpenses => _allExpenses;
   List<FixedAmount> get fixedAmounts => _fixedAmounts;
+  List<BudgetPeriod> get budgetPeriods => _budgetPeriods;
   double get realBalance => _realBalance;
   double get costCenterRealBalance => _costCenterRealBalance;
   
@@ -74,6 +77,7 @@ class AccountingProvider with ChangeNotifier {
   StreamSubscription? _fixedSub;
   StreamSubscription? _realSub;
   StreamSubscription? _centerRealSub;
+  StreamSubscription? _budgetPeriodSub;
 
   AccountingProvider() {
     _initGlobal();
@@ -144,6 +148,7 @@ class AccountingProvider with ChangeNotifier {
     _expSub?.cancel();
     _adjSub?.cancel();
     _centerRealSub?.cancel();
+    _budgetPeriodSub?.cancel();
 
     _catSub = _service.getCategories(id).listen((data) {
       _categories = data;
@@ -172,6 +177,11 @@ class AccountingProvider with ChangeNotifier {
     });
     _centerRealSub = _service.getCostCenterRealBalance(id).listen((data) {
       _costCenterRealBalance = data;
+      notifyListeners();
+    });
+    _budgetPeriodSub = _service.getBudgetPeriods(id).listen((data) {
+      _budgetPeriods = data;
+      _lastSync = DateTime.now();
       notifyListeners();
     });
   }
@@ -219,11 +229,32 @@ class AccountingProvider with ChangeNotifier {
 
   // --- Budget Remaining Calculations (Limit - Spent) ---
 
+  /// Get PME allocated for a specific month across all budget periods
+  double getPmeForMonth(String month) {
+    if (_budgetPeriods.isEmpty) {
+      // Fallback to old system
+      final center = activeCostCenter;
+      if (center == null) return 0;
+      return center.defaultPmeAmount;
+    }
+    
+    double total = 0;
+    for (var period in _budgetPeriods.where((p) => p.isActive)) {
+      if (period.includesMonth(month)) {
+        total += period.getPmeForMonth(month);
+      }
+    }
+    return total;
+  }
+
   double get oteBalance {
     final center = activeCostCenter;
     if (center == null) return 0;
 
-    double oteAllocation = center.defaultOteAmount;
+    // Use budget periods if available, otherwise fallback to cost center default
+    double oteAllocation = _budgetPeriods.isNotEmpty 
+        ? _getTotalOteFromPeriods() 
+        : center.defaultOteAmount;
     
     // Only count donations that are MERGED to a category of type OTE
     double oteDonations = 0;
@@ -263,18 +294,26 @@ class AccountingProvider with ChangeNotifier {
     final center = activeCostCenter;
     if (center == null) return 0;
 
-    DateTime startDate;
-    try {
-      startDate = DateFormat('yyyy-MM').parse(center.pmeStartMonth);
-    } catch (_) {
-      startDate = DateTime(2026, 1);
-    }
+    double pmeAllocationTotal;
     
-    DateTime now = DateTime.now();
-    int monthsCount = (now.year - startDate.year) * 12 + (now.month - startDate.month) + 1;
-    if (monthsCount < 1) monthsCount = 1;
+    // Use budget periods if available, otherwise fallback to cost center default
+    if (_budgetPeriods.isNotEmpty) {
+      pmeAllocationTotal = _getTotalPmeFromPeriods();
+    } else {
+      // Fallback to old calculation
+      DateTime startDate;
+      try {
+        startDate = DateFormat('yyyy-MM').parse(center.pmeStartMonth);
+      } catch (_) {
+        startDate = DateTime(2026, 1);
+      }
+      
+      DateTime now = DateTime.now();
+      int monthsCount = (now.year - startDate.year) * 12 + (now.month - startDate.month) + 1;
+      if (monthsCount < 1) monthsCount = 1;
 
-    double pmeAllocationTotal = center.defaultPmeAmount * monthsCount;
+      pmeAllocationTotal = center.defaultPmeAmount * monthsCount;
+    }
 
     // Only count donations that are MERGED to a category of type PME
     double pmeDonations = 0;
@@ -283,9 +322,7 @@ class AccountingProvider with ChangeNotifier {
         try {
           final cat = _categories.firstWhere((c) => c.id == donation.budgetCategoryId);
           if (cat.budgetType == BudgetType.PME) {
-            if (donation.date.isAfter(startDate) || DateFormat('yyyy-MM').format(donation.date) == center.pmeStartMonth) {
-              pmeDonations += donation.amount;
-            }
+            pmeDonations += donation.amount;
           }
         } catch (_) {}
       }
@@ -462,6 +499,40 @@ class AccountingProvider with ChangeNotifier {
     return _categories.firstWhere((c) => c.id == categoryId).budgetType;
   }
 
+  double _getTotalPmeFromPeriods() {
+    double total = 0;
+    for (var period in _budgetPeriods) {
+      if (period.isActive) {
+        for (var month in period.getAllMonths()) {
+          if (_isMonthInPastOrCurrent(month)) {
+            total += period.getPmeForMonth(month);
+          }
+        }
+      }
+    }
+    return total;
+  }
+
+  double _getTotalOteFromPeriods() {
+    return _budgetPeriods
+        .where((p) => p.isActive)
+        .fold(0.0, (sum, p) => sum + p.oteAmount);
+  }
+
+  bool _isMonthInPastOrCurrent(String month) {
+    try {
+      final now = DateTime.now();
+      final currentMonthVal = now.year * 100 + now.month;
+      
+      final parts = month.split('-');
+      final monthVal = int.parse(parts[0]) * 100 + int.parse(parts[1]);
+      
+      return monthVal <= currentMonthVal;
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   void dispose() {
     _catSub?.cancel();
@@ -471,6 +542,7 @@ class AccountingProvider with ChangeNotifier {
     _fixedSub?.cancel();
     _realSub?.cancel();
     _centerRealSub?.cancel();
+    _budgetPeriodSub?.cancel();
     super.dispose();
   }
 
