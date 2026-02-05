@@ -8,6 +8,7 @@ import 'screens/add_expense_screen.dart';
 import 'screens/add_donation_screen.dart';
 import 'screens/add_transfer_screen.dart';
 import 'screens/add_adjustment_screen.dart';
+import 'screens/monthly_report_screen.dart';
 import 'screens/category_manager_screen.dart';
 import 'screens/budget_allocation_screen.dart';
 import 'screens/fixed_amounts_manager_screen.dart';
@@ -85,6 +86,7 @@ class MyApp extends StatelessWidget {
             '/add-adjustment': (context) => const AddAdjustmentScreen(),
             '/manage-categories': (context) => const CategoryManagerScreen(),
             '/manage-allocations': (context) => const BudgetAllocationScreen(),
+            '/monthly-report': (context) => const MonthlyBudgetReportScreen(),
             '/fixed-amounts': (context) => const FixedAmountsManagerScreen(),
             '/manage-cost-centers': (context) => const CostCenterManagerScreen(),
             '/manage-budget-periods': (context) => const BudgetPeriodManagerScreen(),

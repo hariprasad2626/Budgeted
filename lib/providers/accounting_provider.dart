@@ -600,4 +600,42 @@ class AccountingProvider with ChangeNotifier {
       await _service.updateCostCenterRealBalance(_activeCostCenterId!, amount);
     }
   }
+  Map<String, Map<String, double>> getMonthlyPerformanceMetrics() {
+    // Map<YYYY-MM, {pme_budget, ote_budget, pme_actual, ote_actual}>
+    final Map<String, Map<String, double>> metrics = {};
+
+    // 1. Populate Budget Data from Active Periods
+    for (var period in _budgetPeriods.where((p) => p.isActive)) {
+      for (var month in period.getAllMonths()) {
+        metrics.putIfAbsent(month, () => {'pme_budget': 0.0, 'ote_budget': 0.0, 'pme_actual': 0.0, 'ote_actual': 0.0});
+        
+        // PME is monthly
+        metrics[month]!['pme_budget'] = (metrics[month]!['pme_budget'] ?? 0) + period.getPmeForMonth(month);
+        
+        // OTE is total per period, so we don't necessarily split it by month for "Budget".
+        // However, user might want to see it distributed? 
+        // For now, let's just track Actual OTE usage per month.
+        // OTE Budget is a pool, not monthly. We can show Period total separately or divided?
+        // Let's leave OTE Budget as 0 per month for now, as it's a "Project" budget.
+      }
+    }
+
+    // 2. Populate Expense Data
+    // We rely on expense.budgetMonth which we just added. 
+    // If null, we fall back to expense.date
+    for (var expense in _expenses) {
+      if (expense.moneySource == MoneySource.PERSONAL && !expense.isSettled) continue;
+
+      String month = expense.budgetMonth ?? DateFormat('yyyy-MM').format(expense.date);
+      metrics.putIfAbsent(month, () => {'pme_budget': 0.0, 'ote_budget': 0.0, 'pme_actual': 0.0, 'ote_actual': 0.0});
+
+      if (expense.budgetType == BudgetType.PME) {
+        metrics[month]!['pme_actual'] = (metrics[month]!['pme_actual'] ?? 0) + expense.amount;
+      } else {
+        metrics[month]!['ote_actual'] = (metrics[month]!['ote_actual'] ?? 0) + expense.amount;
+      }
+    }
+
+    return metrics;
+  }
 }
