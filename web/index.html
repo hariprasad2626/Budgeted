@@ -42,7 +42,7 @@
       navigator.serviceWorker.getRegistrations().then(function (registrations) {
         for (let registration of registrations) {
           // Optional: Unregister to force fresh fetch if stuck
-          // registration.unregister();
+          registration.unregister();
         }
       });
 
@@ -55,7 +55,7 @@
 </head>
 
 <body>
-  <script src="flutter_bootstrap.js" async></script>
+  <script src="flutter_bootstrap.js?v=16" async></script>
 </body>
 
 </html>

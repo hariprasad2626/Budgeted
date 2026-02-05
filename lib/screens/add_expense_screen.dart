@@ -26,6 +26,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   MoneySource _moneySource = MoneySource.WALLET;
   DateTime _selectedDate = DateTime.now();
   BudgetType? _derivedBudgetType;
+  String? _selectedBudgetMonth; // YYYY-MM
 
   @override
   void initState() {
@@ -38,8 +39,33 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       _moneySource = e.moneySource;
       _selectedDate = e.date;
       _derivedBudgetType = e.budgetType;
+      _selectedBudgetMonth = e.budgetMonth;
     } else if (widget.defaultSource != null) {
       _moneySource = widget.defaultSource!;
+    }
+  }
+
+  // Helper to generate available budget months from active periods
+  List<String> _getAvailableBudgetMonths(AccountingProvider provider) {
+    final Set<String> months = {};
+    for (var period in provider.budgetPeriods.where((p) => p.isActive)) {
+      months.addAll(period.getAllMonths());
+    }
+    // Also include current month and selected date's month if not present
+    months.add(DateFormat('yyyy-MM').format(DateTime.now()));
+    months.add(DateFormat('yyyy-MM').format(_selectedDate));
+    
+    final sorted = months.toList()..sort();
+    return sorted;
+  }
+
+  // Helper to format YYYY-MM to readable string
+  String _formatMonth(String yyyyMM) {
+    try {
+      final date = DateFormat('yyyy-MM').parse(yyyyMM);
+      return DateFormat('MMM yyyy').format(date);
+    } catch (_) {
+      return yyyyMM;
     }
   }
 
@@ -48,6 +74,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     final provider = Provider.of<AccountingProvider>(context);
     final allCats = provider.categories;
     
+    // Default budget month to transaction date if not set
+    if (_selectedBudgetMonth == null) {
+      _selectedBudgetMonth = DateFormat('yyyy-MM').format(_selectedDate);
+    }
+
     if (widget.expenseToEdit != null && _selectedCategoryName == null && _selectedCategoryId != null) {
       try {
         final cat = allCats.firstWhere((c) => c.id == _selectedCategoryId);
@@ -161,6 +192,22 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     ],
                   ),
                 ),
+              ),
+              const SizedBox(height: 16),
+              // Budget Month Selection
+              DropdownButtonFormField<String>(
+                decoration: _inputDecoration('Budget Month'),
+                value: _getAvailableBudgetMonths(provider).contains(_selectedBudgetMonth) ? _selectedBudgetMonth : null,
+                items: _getAvailableBudgetMonths(provider).map((m) {
+                  return DropdownMenuItem(
+                    value: m,
+                    child: Text(_formatMonth(m)),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  setState(() => _selectedBudgetMonth = val);
+                },
+                hint: const Text('Select Month'),
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -296,6 +343,35 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
        finalBudgetType = generalCat.budgetType;
     }
 
+    // Strict Rule: Check if expense exceeds category limit
+    if (_moneySource == MoneySource.ISKCON) {
+       try {
+         final cat = provider.categories.firstWhere((c) => c.id == finalCatId);
+         final status = provider.getCategoryStatus(cat);
+         double remaining = status['remaining'] ?? 0.0;
+         
+         // If editing, add back the old amount IF it was the same category
+         if (widget.expenseToEdit != null && widget.expenseToEdit!.categoryId == finalCatId) {
+            remaining += widget.expenseToEdit!.amount;
+         }
+
+         final amount = double.parse(_amountController.text).abs();
+         if (amount > remaining) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Strict Rule: Information blocked! Expense (₹${amount.toStringAsFixed(0)}) exceeds remaining budget (₹${remaining.toStringAsFixed(0)}) for ${cat.subCategory}.'),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 4),
+              )
+            );
+            return;
+         }
+       } catch (_) {
+         // Category might not be found or other error, assume allow or block? 
+         // For now, if we can't find category, we probably shouldn't block blindly, but loop code above handles "finding" logic.
+       }
+    }
+
     final expense = Expense(
       id: widget.expenseToEdit?.id ?? const Uuid().v4(),
       costCenterId: provider.activeCostCenterId!,
@@ -305,6 +381,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       moneySource: _moneySource,
       date: _selectedDate,
       remarks: _remarksController.text,
+      budgetMonth: _selectedBudgetMonth,
     );
 
     if (widget.expenseToEdit == null) {

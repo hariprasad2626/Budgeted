@@ -309,13 +309,44 @@ class CategoryManagerScreen extends StatelessWidget {
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
                 ElevatedButton(
                   onPressed: () async {
+                    final newAmount = double.tryParse(amountController.text) ?? 0.0;
+                    
+                    // Validation: Check if this update exceeds strict budget limits
+                    // We need to temporarily simulate the change
+                    // "Allocation" check: (Total Allocations - Old Amount + New Amount) <= Total Available
+                    
+                    final provider = Provider.of<AccountingProvider>(context, listen: false);
+                    final otherCategories = provider.categories.where((c) => c.id != cat.id && c.budgetType == budgetType);
+                    double totalAllocated = otherCategories.fold(0.0, (sum, c) => sum + c.targetAmount);
+                    totalAllocated += newAmount;
+
+                    double limits = 0;
+                    if (budgetType == BudgetType.PME) {
+                      // Sum of monthly PME from active periods
+                      limits = provider.budgetPeriods.where((p) => p.isActive).fold(0, (sum, p) => sum + p.defaultPmeAmount);
+                    } else {
+                      // Sum of OTE from active periods
+                      limits = provider.budgetPeriods.where((p) => p.isActive).fold(0, (sum, p) => sum + p.oteAmount);
+                    }
+
+                    if (totalAllocated > limits) {
+                      // Strict Rule: Block update
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Strict Rule: Total ${budgetType.name} allocation (₹$totalAllocated) exceeds available budget (₹$limits)!'),
+                          backgroundColor: Colors.red,
+                        )
+                      );
+                      return; 
+                    }
+
                     final updated = BudgetCategory(
                       id: cat.id,
                       costCenterId: cat.costCenterId,
                       category: categoryController.text,
                       subCategory: subCategoryController.text,
                       budgetType: budgetType,
-                      targetAmount: double.tryParse(amountController.text) ?? 0.0,
+                      targetAmount: newAmount,
                       isActive: cat.isActive,
                       remarks: remarksController.text,
                       createdAt: cat.createdAt,
@@ -390,13 +421,38 @@ class CategoryManagerScreen extends StatelessWidget {
                 ElevatedButton(
                   onPressed: () async {
                     if (categoryController.text.isEmpty) return;
+                    
+                    final newAmount = double.tryParse(amountController.text) ?? 0.0;
+                    
+                    // Validation for Strict Rules
+                    final otherCategories = provider.categories.where((c) => c.budgetType == budgetType);
+                    double totalAllocated = otherCategories.fold(0.0, (sum, c) => sum + c.targetAmount);
+                    totalAllocated += newAmount;
+
+                    double limits = 0;
+                    if (budgetType == BudgetType.PME) {
+                      limits = provider.budgetPeriods.where((p) => p.isActive).fold(0, (sum, p) => sum + p.defaultPmeAmount);
+                    } else {
+                      limits = provider.budgetPeriods.where((p) => p.isActive).fold(0, (sum, p) => sum + p.oteAmount);
+                    }
+
+                    if (totalAllocated > limits) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Strict Rule: Total ${budgetType.name} allocation (₹$totalAllocated) exceeds available budget (₹$limits)!'),
+                          backgroundColor: Colors.red,
+                        )
+                      );
+                      return; 
+                    }
+
                     final cat = BudgetCategory(
                       id: '',
                       costCenterId: provider.activeCostCenterId!,
                       category: categoryController.text,
                       subCategory: subCategoryController.text,
                       budgetType: budgetType,
-                      targetAmount: double.tryParse(amountController.text) ?? 0.0,
+                      targetAmount: newAmount,
                       isActive: true,
                       remarks: remarksController.text,
                       createdAt: DateTime.now(),

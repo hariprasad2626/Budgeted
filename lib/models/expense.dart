@@ -11,6 +11,7 @@ class Expense {
   final BudgetType budgetType;
   final MoneySource moneySource;
   final DateTime date;
+  final String? budgetMonth; // YYYY-MM
   final String remarks;
   final bool isSettled;
 
@@ -24,6 +25,7 @@ class Expense {
     required this.date,
     required this.remarks,
     this.isSettled = false,
+    this.budgetMonth,
   });
 
   Map<String, dynamic> toMap() {
@@ -36,6 +38,7 @@ class Expense {
       'date': Timestamp.fromDate(date),
       'remarks': remarks,
       'isSettled': isSettled,
+      'budgetMonth': budgetMonth,
     };
   }
 
@@ -56,6 +59,7 @@ class Expense {
       date: (map['date'] as Timestamp).toDate(),
       remarks: map['remarks'] ?? '',
       isSettled: map['isSettled'] ?? false,
+      budgetMonth: map['budgetMonth'],
     );
   }
 }
