@@ -347,26 +347,47 @@ class _LedgerScreenState extends State<LedgerScreen> {
                     'categoryPath': 'Manual Adjustment',
                 };
            }),
-           ...provider.expenses.where((e) => e.moneySource == MoneySource.PERSONAL && e.amount != 0).map((e) {
+           ...provider.expenses.where((e) => e.moneySource == MoneySource.PERSONAL && e.amount != 0).expand((e) {
                 String catName = 'Global/Wallet';
+                String bType = 'WALLET';
                 try {
                   final cat = provider.categories.firstWhere((c) => c.id == e.categoryId);
                   catName = '${cat.category} -> ${cat.subCategory}';
+                  bType = cat.budgetType.toString().split('.').last;
                 } catch (_) {}
 
-                return {
+                // Every personal expense produces TWO ledger entries for perfect reconciliation:
+                // 1. The usage of the category's budget (Debit)
+                // 2. The credit to the advance/wallet (Credit)
+                
+                return [
+                  {
+                    'type': 'Expense',
+                    'source': 'Personal (Settled)',
+                    'amount': -e.amount, 
+                    'date': e.date,
+                    'title': '${e.remarks} (via Advance)',
+                    'color': Colors.redAccent,
+                    'item': e,
+                    'budgetType': bType,
+                    'status': 'Spent',
+                    'statusColor': Colors.redAccent,
+                    'categoryPath': catName,
+                  },
+                  {
                     'type': 'Settlement',
-                    'source': 'Personal',
+                    'source': 'Wallet Credit',
                     'amount': e.amount, 
                     'date': e.date,
                     'title': 'Settled: ${e.remarks}',
                     'color': e.isSettled ? Colors.green : Colors.grey,
                     'item': e,
-                    'budgetType': 'PME', 
+                    'budgetType': 'WALLET', 
                     'status': e.isSettled ? 'Settled' : 'Unsettled',
                     'statusColor': e.isSettled ? Colors.green : Colors.grey,
-                    'categoryPath': catName,
-                };
+                    'categoryPath': 'Pocket -> $catName',
+                  }
+                ];
            }),
         ];
 
@@ -377,13 +398,13 @@ class _LedgerScreenState extends State<LedgerScreen> {
         if (filterMode == 'OTE') {
           displayBalance = provider.oteBalance;
           headerTitle = 'OTE Balance';
-          // OTE ledger should ONLY show OTE budget, OTE expenses, and OTE-merged donations/adjustments
-          allEntries = allEntries.where((e) => e['budgetType'] == 'OTE' && e['type'] != 'Transfer' && e['type'] != 'Settlement').toList();
+          // OTE ledger should ONLY show OTE items. 
+          allEntries = allEntries.where((e) => e['budgetType'] == 'OTE').toList();
         } else if (filterMode == 'PME') {
           displayBalance = provider.pmeBalance;
           headerTitle = 'PME Balance';
-          // PME ledger should show PME budget, PME expenses, and Transfers (Advances)
-          allEntries = allEntries.where((e) => (e['budgetType'] == 'PME' || e['type'] == 'Transfer') && e['type'] != 'Settlement').toList();
+          // PME ledger should show PME items AND Transfers (Advances) if they were from PME
+          allEntries = allEntries.where((e) => e['budgetType'] == 'PME' || (e['type'] == 'Transfer' && e['budgetType'] == 'PME')).toList();
         } else if (filterMode == 'WALLET') {
           displayBalance = provider.walletBalance;
           headerTitle = 'Wallet Balance';
@@ -392,12 +413,16 @@ class _LedgerScreenState extends State<LedgerScreen> {
         } else if (filterMode == 'ADVANCE') {
           displayBalance = provider.advanceUnsettled;
           headerTitle = 'Advance Unsettled';
+          // The ADVANCE view shows the original advances (Transfer) and the repayments (Settlement)
           allEntries = allEntries.where((e) => e['type'] == 'Transfer' || e['type'] == 'Settlement').toList();
         } else {
-           // ALL_CENTER
+           // ALL_CENTER (Total Health)
            displayBalance = provider.costCenterBudgetBalance;
            headerTitle = 'Total CC Balance';
-           // ALL_CENTER shows everything except settlements (which are personal)
+           // ALL_CENTER shows everything that affects REAL CASH in the bank.
+           // This includes: Normal Expenses, Donations, Adjustments, Transfers (Advances), and Category usage.
+           // To avoid double counting Advances vs Settlements, we show the 'Expense' side of the settlement 
+           // but NOT the 'Settlement' credit side (which is just internal debt repayment).
            allEntries = allEntries.where((e) => e['type'] != 'Settlement').toList();
         }
 

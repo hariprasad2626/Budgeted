@@ -318,9 +318,9 @@ class AccountingProvider with ChangeNotifier {
     // 2. Total Donations (Earmarked + Wallet)
     double totalDonations = _donations.fold(0.0, (sum, d) => sum + d.amount);
 
-    // 3. Total Expenses (Non-personal)
+    // 3. Total Expenses (Non-personal + Settled Personal)
     double totalExpenses = _expenses
-        .where((e) => e.moneySource != MoneySource.PERSONAL)
+        .where((e) => e.moneySource != MoneySource.PERSONAL || e.isSettled)
         .fold(0.0, (sum, e) => sum + e.amount);
 
     // 4. Adjustments
