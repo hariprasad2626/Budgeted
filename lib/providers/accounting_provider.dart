@@ -251,93 +251,19 @@ class AccountingProvider with ChangeNotifier {
     return total;
   }
 
-  double get oteBalance {
-    final center = activeCostCenter;
-    if (center == null) return 0;
 
-    // Use budget periods exclusively
-    double oteAllocation = _getTotalOteFromPeriods();
-    
-    // Only count donations that are MERGED to a category of type OTE
-    double oteDonations = 0;
-    for (var donation in _donations) {
-      if (donation.mode == DonationMode.MERGE_TO_BUDGET && donation.budgetCategoryId != null) {
-        try {
-          final cat = _categories.firstWhere((c) => c.id == donation.budgetCategoryId);
-          if (cat.budgetType == BudgetType.OTE) {
-            oteDonations += donation.amount;
-          }
-        } catch (_) {}
-      }
-    }
-
-    // Include if NOT Personal OR (if Personal AND Settled)
-    double oteSpent = _expenses
-        .where((e) => e.budgetType == BudgetType.OTE && (e.moneySource != MoneySource.PERSONAL || e.isSettled))
-        .fold(0, (sum, item) => sum + item.amount);
-
-    double adjustments = _getAdjustmentTotal(BudgetType.OTE);
-
-    // Internal Transfers: Subtract outgoing, Add incoming
-    double outgoingTransfers = _transfers
-        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId != null)
-        .where((t) => _categories.any((c) => c.id == t.fromCategoryId && c.budgetType == BudgetType.OTE))
-        .fold(0.0, (sum, t) => sum + t.amount);
-    
-    double incomingTransfers = _transfers
-        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId != null)
-        .where((t) => _categories.any((c) => c.id == t.toCategoryId && c.budgetType == BudgetType.OTE))
-        .fold(0.0, (sum, t) => sum + t.amount);
-
-    return oteAllocation + oteDonations - oteSpent + adjustments - outgoingTransfers + incomingTransfers;
-  }
 
   double get pmeBalance {
-    final center = activeCostCenter;
-    if (center == null) return 0;
-
-    // Use budget periods exclusively
-    double pmeAllocationTotal = _getTotalPmeFromPeriods();
-
-    // Only count donations that are MERGED to a category of type PME
-    double pmeDonations = 0;
-    for (var donation in _donations) {
-      if (donation.mode == DonationMode.MERGE_TO_BUDGET && donation.budgetCategoryId != null) {
-        try {
-          final cat = _categories.firstWhere((c) => c.id == donation.budgetCategoryId);
-          if (cat.budgetType == BudgetType.PME) {
-            pmeDonations += donation.amount;
-          }
-        } catch (_) {}
-      }
-    }
-
-    // Include if NOT Personal OR (if Personal AND Settled)
-    double pmeSpent = _expenses
-        .where((e) => e.budgetType == BudgetType.PME && (e.moneySource != MoneySource.PERSONAL || e.isSettled))
-        .fold(0, (sum, item) => sum + item.amount);
-
-    // Advances are subtracted in the "transit period" (unsettled) 
-    // to ensure the Center Balance drops as soon as money is moved to Personal Pocket.
-    // Once the Personal Expense is "Settled", the deduction shifts to 'pmeSpent'.
-
-    double adjustments = _getAdjustmentTotal(BudgetType.PME);
-
-    // Internal Transfers: Subtract outgoing, Add incoming
-    double outgoingTransfers = _transfers
-        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId != null)
-        .where((t) => _categories.any((c) => c.id == t.fromCategoryId && c.budgetType == BudgetType.PME))
-        .fold(0.0, (sum, t) => sum + t.amount);
-    
-    double incomingTransfers = _transfers
-        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId != null)
-        .where((t) => _categories.any((c) => c.id == t.toCategoryId && c.budgetType == BudgetType.PME))
-        .fold(0.0, (sum, t) => sum + t.amount);
-
-    return pmeAllocationTotal + pmeDonations - pmeSpent + adjustments - advanceUnsettled - outgoingTransfers + incomingTransfers;
+    return _categories
+        .where((c) => c.budgetType == BudgetType.PME)
+        .fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['remaining']!);
   }
 
-
+  double get oteBalance {
+    return _categories
+        .where((c) => c.budgetType == BudgetType.OTE)
+        .fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['remaining']!);
+  }
 
   // --- Flow: Real Money at ISKCON ---
   
@@ -352,7 +278,6 @@ class AccountingProvider with ChangeNotifier {
         .where((t) => t.costCenterId == center.id && t.type == TransferType.TO_PERSONAL)
         .fold<double>(0.0, (sum, t) => sum + t.amount);
 
-    // 2. Personal Expenses made for THIS center
     // 2. Personal Expenses made for THIS center AND Settled
     double settledAmount = _expenses
         .where((e) => e.moneySource == MoneySource.PERSONAL && e.isSettled)
@@ -408,87 +333,9 @@ class AccountingProvider with ChangeNotifier {
   }
 
   /// Wallet / Unallocated Balance (The "Petty Cash" or "General Fund")
-  /// formula: remaining non budgeted + donation (wallet) + expense through wallet
+  /// Formula: Total Cost Center Balance - Sum(Category Balances)
   double get walletBalance {
-    final center = activeCostCenter;
-    if (center == null) return 0;
-
-    // 1. "remaining non budgeted" (Unallocated portion of the base budget)
-    // For PME: (Total Baseline PME from Temple - Total Earmarked categories)
-    double totalPmeBaseline = 0;
-    int totalMonthsElapsedInPeriods = 0;
-    final Set<String> elapsedMonths = {};
-
-    for (var period in _budgetPeriods.where((p) => p.isActive)) {
-      for (var month in period.getAllMonths()) {
-        if (isMonthInPastOrCurrent(month)) {
-          elapsedMonths.add(month);
-          totalPmeBaseline += period.defaultPmeAmount; // Use baseline default
-        }
-      }
-    }
-    totalMonthsElapsedInPeriods = elapsedMonths.length;
-
-    double earmarkedPmeMonthly = _categories
-        .where((c) => c.budgetType == BudgetType.PME)
-        .fold(0, (sum, c) => sum + c.targetAmount);
-    
-    double unallocatedPme = 0;
-    // For PME: (Total Baseline PME from Temple - Total Budgeted PME)
-    // This represents the "Savings" diverted to the wallet by reducing the monthly budget.
-    final Set<String> months = {};
-    for (var p in _budgetPeriods.where((p) => p.isActive)) {
-      months.addAll(p.getAllMonths().where((m) => isMonthInPastOrCurrent(m)));
-    }
-
-    for (var m in months) {
-      double monthlyBaseline = 0;
-      double monthlyBudgeted = 0;
-      for (var p in _budgetPeriods.where((p) => p.isActive)) {
-        if (p.includesMonth(m)) {
-          monthlyBaseline += p.defaultPmeAmount;
-          monthlyBudgeted += p.getPmeForMonth(m);
-        }
-      }
-      if (monthlyBaseline > monthlyBudgeted) {
-        unallocatedPme += (monthlyBaseline - monthlyBudgeted);
-      }
-    }
-
-    // For OTE: (Total Budgeted OTE) - (Total Earmarked OTE Categories)
-    double totalOteAllocated = _getTotalOteFromPeriods();
-    double earmarkedOte = _categories
-        .where((c) => c.budgetType == BudgetType.OTE)
-        .fold(0, (sum, c) => sum + c.targetAmount);
-    double unallocatedOte = totalOteAllocated - earmarkedOte;
-
-    // 2. "donation" (Donations specifically marked for Wallet)
-    double walletDonations = _donations
-        .where((d) => d.mode == DonationMode.WALLET)
-        .fold(0, (sum, item) => sum + item.amount);
-
-    // 3. "expense through wallet" (Expenses specifically paid from Wallet)
-    double walletExpenses = _expenses
-        .where((e) => e.moneySource == MoneySource.WALLET)
-        .fold(0, (sum, item) => sum + item.amount);
-
-    // 4. Center-level adjustments (not tied to any category) are also unallocated funds
-    double centerAdjustments = _centerAdjustments
-        .where((a) => a.categoryId == null)
-        .fold(0, (sum, a) => sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount));
-
-    // 5. Internal Transfers to/from Wallet
-    // Transfers FROM category TO Wallet (toCategoryId is null)
-    double transfersIntoWallet = _transfers
-        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == null && t.fromCategoryId != null)
-        .fold(0.0, (sum, t) => sum + t.amount);
-    
-    // Transfers FROM Wallet (not supported yet in UI, but for logic completeness) TO category
-    double transfersOutOfWallet = _transfers
-        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == null && t.toCategoryId != null)
-        .fold(0.0, (sum, t) => sum + t.amount);
-
-    return unallocatedPme + unallocatedOte + walletDonations - walletExpenses + centerAdjustments + transfersIntoWallet - transfersOutOfWallet;
+    return costCenterBudgetBalance - pmeBalance - oteBalance;
   }
 
   Map<String, double> getCategoryStatus(BudgetCategory cat) {

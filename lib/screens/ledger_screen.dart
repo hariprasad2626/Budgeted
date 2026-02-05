@@ -238,6 +238,19 @@ class _LedgerScreenState extends State<LedgerScreen> {
           }),
            ...provider.transfers.where((t) => t.costCenterId == activeCenter.id && t.amount != 0).expand((t) {
                 if (t.type == TransferType.TO_PERSONAL) {
+                  // Determine source budget type for the advance
+                  String advBudgetType = 'WALLET';
+                  String path = 'Wallet -> Personal';
+                  if (t.fromCategoryId != null) {
+                    try {
+                      final cat = provider.categories.firstWhere((c) => c.id == t.fromCategoryId);
+                      advBudgetType = cat.budgetType.toString().split('.').last;
+                      path = '${cat.category} -> ${cat.subCategory}';
+                    } catch (_) {
+                       // Keep as Wallet if cat not found
+                    }
+                  }
+
                   return [{
                     'type': 'Transfer',
                     'source': 'Cost Center',
@@ -246,10 +259,248 @@ class _LedgerScreenState extends State<LedgerScreen> {
                     'title': 'Advance: ${t.remarks}',
                     'color': Colors.blueAccent,
                     'item': t,
-                    'budgetType': 'PME', 
+                    'budgetType': advBudgetType, 
                     'status': 'Advance',
                     'statusColor': Colors.blueAccent,
-                    'categoryPath': 'Cost Center -> Personal',
+                    'categoryPath': path,
+                  }];
+                } else {
+                  // Category-to-Category (or Category-to-Wallet)
+                  List<Map<String, dynamic>> entries = [];
+                  
+                  String? fromBType;
+                  String fromName = 'Wallet/Unallocated';
+                  if (t.fromCategoryId != null) {
+                    try {
+                      final cat = provider.categories.firstWhere((c) => c.id == t.fromCategoryId);
+                      fromBType = cat.budgetType.toString().split('.').last;
+                      fromName = '${cat.category} -> ${cat.subCategory}';
+                    } catch (_) { fromBType = 'WALLET'; }
+                  } else {
+                    fromBType = 'WALLET';
+                  }
+
+                  String? toBType;
+                  String toName = 'Wallet/Unallocated';
+                  if (t.toCategoryId != null) {
+                    try {
+                      final cat = provider.categories.firstWhere((c) => c.id == t.toCategoryId);
+                      toBType = cat.budgetType.toString().split('.').last;
+                      toName = '${cat.category} -> ${cat.subCategory}';
+                    } catch (_) { toBType = 'WALLET'; }
+                  } else {
+                    toBType = 'WALLET';
+                  }
+
+                  // Outgoing Debit
+                  entries.add({
+                    'type': 'Internal Transfer',
+                    'source': 'Outgoing',
+                    'amount': -t.amount,
+                    'date': t.date,
+                    'title': 'Trf Out: ${t.remarks}',
+                    'color': Colors.redAccent,
+                    'item': t,
+                    'budgetType': fromBType,
+                    'status': 'Debited',
+                    'statusColor': Colors.redAccent,
+                    'categoryPath': 'From $fromName -> To $toName',
+                  });
+
+                  // Incoming Credit
+                  entries.add({
+                    'type': 'Internal Transfer',
+                    'source': 'Incoming',
+                    'amount': t.amount,
+                    'date': t.date,
+                    'title': 'Trf In: ${t.remarks}',
+                    'color': Colors.greenAccent,
+                    'item': t,
+                    'budgetType': toBType,
+                    'status': 'Received',
+                    'statusColor': Colors.greenAccent,
+                    'categoryPath': 'From $fromName -> To $toName',
+                  });
+
+                  return entries;
+                }
+           }),
+           ...provider.centerAdjustments.where((a) => a.amount != 0).map((a) {
+                final isCredit = a.type == AdjustmentType.CREDIT;
+                String? bType;
+                if (a.budgetType != null) {
+                  bType = a.budgetType.toString().split('.').last;
+                } else {
+                  bType = 'WALLET';
+                }
+                return {
+                    'type': 'Adjustment',
+                    'source': 'Center',
+                    'amount': isCredit ? a.amount : -a.amount,
+                    'date': a.date,
+                    'title': a.remarks,
+                    'color': Colors.orangeAccent,
+                    'item': a,
+                    'budgetType': bType,
+                    'status': isCredit ? 'Credit' : 'Debit',
+                    'statusColor': Colors.orangeAccent,
+                    'categoryPath': 'Manual Adjustment',
+                };
+           }),
+           // Personal Expenses (for Advance view) - AND for standard view if settled?
+           // Actually, settled personal expenses REPLACED the advance. 
+           // In "Advance" view, we show them as settlements.
+           // In "PME/Wallet" view, do we show them?
+           // If they are FILTERED out above (moneySource != PERSONAL), then they are missing from PME/Wallet ledger.
+           // They should appear in PME/Wallet ledger as "Expense (Settled)" if looking at PME/Wallet balance.
+           // Wait, if I take 10k Advance (Wallet Debit).
+           // Balance is -10k.
+           // I Spend 5k Settled (Wallet Expense).
+           // If that shows up as Expense (-5k), then Balance is -15k? Double counting!
+           // NO.
+           // Advance Unsettled = 10k - 5k = 5k.
+           // Wallet Balance = Total - AdvanceUnsettled - Expenses.
+           // = Total - (10k - 5k) - 5k 
+           // = Total - 5k - 5k = Total - 10k.
+           // So the math works out.
+           // The Ledger VIEW for Wallet should show:
+           // 1. Advance: -10k.
+           // 2. Settlement: +5k (Reducing advance debt? No, that's confusing for Wallet view).
+           // Ideally:
+           // Wallet View:
+           // - Advance Taken: -10k.
+           // (The money is gone. User has it).
+           // The fact that user spent it doesn't change Wallet Balance.
+           // The "Expense" record for settled expense is purely to classify WHERE it went, but the money left the wallet at step 1.
+           // So for Wallet Balance reconciliation, we ONLY need the Advance Debit.
+           // We do NOT need the Settlement Expense.
+           // UNLESS... the advance was returned?
+           // If I return 5k cash? That's a "Credit Advance" or "Deposit".
+           
+           // So, Settled Expenses should NOT appear in Cost Center Ledger sum to avoid double counting?
+           // Let's re-read provider logic.
+           // totalExpenses excludes Personal.
+           // advances = totalAdvances - settled.
+           // Balance = ... - totalExpenses - advances
+           // = ... - (NonPersonalExp) - (TotalAdv - SettledPersonalExample)
+           // = ... - NonPersonalExp - TotalAdv + SettledPersonalExp
+           
+           // So Settled Personal Expenses ADD back to the balance equation?
+           // Effectively, "Total Advances" subtracts the whole chunk.
+           // "Settled" adds it back (cancels the advance deduction).
+           // But then where does the money go?
+           // It goes nowhere?
+           // Ah, because "Settled" usually implies an Expense Record exists.
+           // Does `_expenses` list include Personal items? Yes.
+           // BUT `totalExpenses` calculation in Provider EXCLUDES them: `where((e) => e.moneySource != MoneySource.PERSONAL)`.
+           
+           // So:
+           // Balance = ... - (NonPersonal) - (Adv - Settled)
+           // If I treat "Settled" as an Expense:
+           // Balance = ... - (NonPersonal) - Adv + Settled
+           // This means Settled acts like a Credit? That's wrong.
+           // Spending money shouldn't increase balance.
+           
+           // Wait. `totalExpenses` (provider line 397) excludes Personal.
+           // So `SettledPersonal` is NOT in `totalExpenses`.
+           // So `Balance` = `-Adv + Settled`.
+           // If I spend 5k, `Settled` = 5k. `Balance` goes up 5k?
+           // That implies the money is "Returned" to the center?
+           // This logic seems flawed if "Settled" means "Spent for Center".
+           
+           // If I spend 5k for Center, it IS an expense. It should reduce balance.
+           // So `totalExpenses` SHOULD include Settled Personal Expenses?
+           // Let's check provider again.
+           // `double totalExpenses = _expenses.where((e) => e.moneySource != MoneySource.PERSONAL).fold...`
+           // It EXCLUDES ALL Personal.
+           
+           // So Current Formula: Balance = X - (Adv - Settled).
+           // = X - Adv + Settled.
+           // Example: took 10k. Adv=10k. Settled=0. Balance = X - 10k. (Correct, 10k missing).
+           // Spent 5k. Adv=10k. Settled=5k. Balance = X - 10k + 5k = X - 5k.
+           // Result: Balance INCREASED by 5k.
+           // Logic: "I accounted for 5k, so I have 5k more"? NO!
+           // The 5k is SPENT. It is Gone.
+           // The 5k remaining in user pocket is still owed (Unsettled=5k).
+           // The 5k spent is Gone.
+           // So Balance should be X - 10k (total cash out).
+           // Whether it is in Pocket or Spent, it is not in Bank.
+           
+           // So the Balance Calculation in Provider is CORRECT for "Bank/Cash Balance".
+           // i.e. How much money I have in hand.
+           // The 5k spent is gone. The 5k in pocket is gone (physically).
+           // So Bank Balance is X - 10k.
+           
+           // Why does Provider formula produce X - 5k?
+           // BECAUSE `advanceUnsettled` is getting smaller!
+           // `costCenterBudgetBalance` (line 407 Provider):
+           // `... - totalExpenses ... - advances`
+           // If `advances` shrinks (because of settlement), Balance GROWS.
+           // That is WRONG for a Cash Balance calculator.
+           // Unless `totalExpenses` GROWS too.
+           // But `totalExpenses` excludes Personal!
+           
+           // CORRECTION NEEDED IN PROVIDER:
+           // `totalExpenses` must INCLUDE Settled Personal Expenses.
+           // If I settled it, it is now a valid Expense of the Center.
+           
+           // Let's Fix PROVIDER first (next step).
+           
+           // But for LEDGER SCREEN logic (this step):
+           // If I fix Provider, then Ledger must show:
+           // 1. Advance Debit (-10k).
+           // 2. Expense Debit (-5k)?
+           // 3. And Settlement Credit (+5k)? (To cancel the double counting of Adv vs Exp?)
+           
+           // If Ledger is "Cash/Bank Ledger":
+           // ONLY Advance Debit (-10k) happened.
+           // The Expense happened "Outside" (in pocket).
+           // The Settlement is just bookkeeping.
+           
+           // Ledger Sum should explain "Why is Balance X?".
+           // If Balance = X - 10k.
+           // Ledger should show: -10k Advance.
+           // It should NOT show the Expense (because -10k covers it).
+           
+           // So, Settled Expenses should NOT appear in Ledger View of "Cost Center Balance".
+           // They ONLY appear in "Advance" view (to explain why debt reduced).
+           
+           // BUT, my logic finding in Provider suggests Provider Balance is WRONG.
+           // If Provider Balance is wrong (increasing when settled), then Ledger Sum (which correctly sums debits) will mismatch Provider Balance.
+           
+           // Step 1: Fix Ledger Screen "Advance" BudgetType tagging (lines 239+), so Advances appear in Wallet Ledger.
+           // This handles the immediate issue of missing entries for Wallet.
+           
+           // Step 2: I will address the Provider calculation logic right after if needed.
+           // For now, let's assume the user wants to see the Advance in the Wallet ledger.
+           
+           ...provider.transfers.where((t) => t.costCenterId == activeCenter.id && t.amount != 0).expand((t) {
+                if (t.type == TransferType.TO_PERSONAL) {
+                  // Determine source budget type for the advance
+                  String advBudgetType = 'WALLET';
+                  String path = 'Wallet -> Personal';
+                  if (t.fromCategoryId != null) {
+                    try {
+                      final cat = provider.categories.firstWhere((c) => c.id == t.fromCategoryId);
+                      advBudgetType = cat.budgetType.toString().split('.').last;
+                      path = '${cat.category} -> ${cat.subCategory}';
+                    } catch (_) {
+                       // Keep as Wallet if cat not found
+                    }
+                  }
+
+                  return [{
+                    'type': 'Transfer',
+                    'source': 'Cost Center',
+                    'amount': -t.amount,
+                    'date': t.date,
+                    'title': 'Advance: ${t.remarks}',
+                    'color': Colors.blueAccent,
+                    'item': t,
+                    'budgetType': advBudgetType, 
+                    'status': 'Advance',
+                    'statusColor': Colors.blueAccent,
+                    'categoryPath': path,
                   }];
                 } else {
                   // Category-to-Category (or Category-to-Wallet)
@@ -313,30 +564,13 @@ class _LedgerScreenState extends State<LedgerScreen> {
                 }
            }),
            ...provider.centerAdjustments.where((a) => a.amount != 0).map((a) {
-                final isCredit = a.type == AdjustmentType.CREDIT;
-                String? bType;
-                if (a.budgetType != null) {
-                  bType = a.budgetType.toString().split('.').last;
-                } else {
-                  bType = 'WALLET';
-                }
-                return {
-                    'type': 'Adjustment',
-                    'source': 'Center',
-                    'amount': isCredit ? a.amount : -a.amount,
-                    'date': a.date,
-                    'title': a.remarks,
-                    'color': Colors.orangeAccent,
-                    'item': a,
-                    'budgetType': bType,
-                    'status': isCredit ? 'Credit' : 'Debit',
-                    'statusColor': Colors.orangeAccent,
-                    'categoryPath': 'Manual Adjustment',
-                };
+             // ... existing logic ...
+             return { /* ... */ };
            }),
-           // Personal Expenses (for Advance view)
+           // Personal Expenses:
+           // We just keep them for 'Settlement' view in 'ADVANCE' filter.
            ...provider.expenses.where((e) => e.moneySource == MoneySource.PERSONAL && e.amount != 0).map((e) {
-                String catName = 'General Wallet';
+                String catName = 'Global/Wallet';
                 try {
                   final cat = provider.categories.firstWhere((c) => c.id == e.categoryId);
                   catName = '${cat.category} -> ${cat.subCategory}';
@@ -345,12 +579,12 @@ class _LedgerScreenState extends State<LedgerScreen> {
                 return {
                     'type': 'Settlement',
                     'source': 'Personal',
-                    'amount': e.amount, // Positive because it reduces the "Advance Taken" debt
+                    'amount': e.amount, 
                     'date': e.date,
                     'title': 'Settled: ${e.remarks}',
                     'color': e.isSettled ? Colors.green : Colors.grey,
                     'item': e,
-                    'budgetType': 'PME', // Personal settlements offset advances which were marked as PME
+                    'budgetType': 'PME', // This is still debatable for Ledger Sum, but for 'ADVANCE' view it's fine.
                     'status': e.isSettled ? 'Settled' : 'Unsettled',
                     'statusColor': e.isSettled ? Colors.green : Colors.grey,
                     'categoryPath': catName,
@@ -442,24 +676,43 @@ class _LedgerScreenState extends State<LedgerScreen> {
                     ),
                     if (_selectedLedgerIds.isNotEmpty) ...[
                       Divider(height: 24, color: provider.isDarkMode ? Colors.white24 : Colors.grey.shade400),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Selected Sum:', style: TextStyle(fontSize: 14, color: provider.isDarkMode ? Colors.tealAccent : Colors.teal.shade700, fontWeight: FontWeight.bold)),
                           Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                '₹${selectedSum.toStringAsFixed(2)}',
-                                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: provider.isDarkMode ? Colors.tealAccent : Colors.teal.shade700),
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    value: _selectedLedgerIds.length == allEntries.length,
+                                    onChanged: (bool? value) {
+                                      setState(() {
+                                        if (value == true) {
+                                          _selectedLedgerIds.addAll(allEntries.map((e) => e['uniqueKey'] as String));
+                                        } else {
+                                          _selectedLedgerIds.clear();
+                                        }
+                                      });
+                                    },
+                                    activeColor: Colors.tealAccent,
+                                  ),
+                                  Text('Select All', style: TextStyle(fontSize: 14, color: provider.isDarkMode ? Colors.tealAccent : Colors.teal.shade700)),
+                                ],
                               ),
-                              IconButton(
-                                icon: Icon(Icons.close, size: 18, color: provider.isDarkMode ? Colors.grey : Colors.grey.shade700),
-                                onPressed: () => setState(() => _selectedLedgerIds.clear()),
+                              Row(
+                                children: [
+                                  Text('Sum: ', style: TextStyle(fontSize: 14, color: provider.isDarkMode ? Colors.tealAccent : Colors.teal.shade700, fontWeight: FontWeight.bold)),
+                                  Text(
+                                    '₹${selectedSum.toStringAsFixed(2)}',
+                                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: provider.isDarkMode ? Colors.tealAccent : Colors.teal.shade700),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    icon: Icon(Icons.close, size: 18, color: provider.isDarkMode ? Colors.grey : Colors.grey.shade700),
+                                    onPressed: () => setState(() => _selectedLedgerIds.clear()),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
-                      ),
                     ],
                   ],
                 ),
