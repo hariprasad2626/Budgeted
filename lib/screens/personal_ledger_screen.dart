@@ -22,6 +22,7 @@ class PersonalLedgerScreen extends StatefulWidget {
 class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final Set<String> _selectedExpenseIds = {};
+  final Set<String> _selectedHistoryIds = {};
   
   // Search State
   bool _isSearching = false;
@@ -189,6 +190,23 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
         pendingExpenses.sort((a, b) => b.date.compareTo(a.date));
         historyEntries.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
 
+        // Assign unique keys for history selection
+        for (int i = 0; i < historyEntries.length; i++) {
+          final item = historyEntries[i]['item'];
+          historyEntries[i]['uniqueKey'] = item.id;
+        }
+
+        double pendingSum = pendingExpenses
+            .where((e) => _selectedExpenseIds.contains(e.id))
+            .fold(0.0, (sum, e) => sum + e.amount);
+        
+        double historySum = historyEntries
+            .where((e) => _selectedHistoryIds.contains(e['uniqueKey']))
+            .fold(0.0, (sum, e) => sum + (e['amount'] as double));
+        
+        double totalSelectionSum = pendingSum + historySum;
+        bool hasSelection = _selectedExpenseIds.isNotEmpty || _selectedHistoryIds.isNotEmpty;
+
 
         // --- 3. Build UI ---
         return Scaffold(
@@ -257,7 +275,31 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
                         '₹${provider.personalBalance.toStringAsFixed(2)}',
                         style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
                       ),
-                        const Text('Balance includes all advances and unssettled expenses.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      const Text('Balance includes all advances and unssettled expenses.', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      if (hasSelection) ...[
+                        const Divider(height: 24, color: Colors.white24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Selected Sum:', style: TextStyle(fontSize: 14, color: Colors.tealAccent, fontWeight: FontWeight.bold)),
+                            Row(
+                              children: [
+                                Text(
+                                  '₹${totalSelectionSum.toStringAsFixed(2)}',
+                                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.tealAccent),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+                                  onPressed: () => setState(() {
+                                    _selectedExpenseIds.clear();
+                                    _selectedHistoryIds.clear();
+                                  }),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
                       ],
                     ),
                   ),
@@ -377,12 +419,45 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
         final dateLine = entry['dateLine'] as String;
         final meta = entry['meta']; // For Transfers, remarks are here
 
+        final String uniqueId = entry['uniqueKey'];
+        final bool isSelected = _selectedHistoryIds.contains(uniqueId);
+
         return InkWell(
-          onTap: () => _showEntryDetails(context, entry['item'], entry['type']),
-          child: Padding(
+          onTap: () {
+            setState(() {
+              if (isSelected) {
+                _selectedHistoryIds.remove(uniqueId);
+              } else {
+                _selectedHistoryIds.add(uniqueId);
+              }
+            });
+          },
+          onLongPress: () => _showEntryDetails(context, entry['item'], entry['type']),
+          child: Container(
+            color: isSelected ? Colors.teal.withOpacity(0.1) : null,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
+                // Checkbox for summing
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Checkbox(
+                    value: isSelected,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true) {
+                          _selectedHistoryIds.add(uniqueId);
+                        } else {
+                          _selectedHistoryIds.remove(uniqueId);
+                        }
+                      });
+                    },
+                    activeColor: Colors.tealAccent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 // Icon Circle
                 Container(
                   width: 40,

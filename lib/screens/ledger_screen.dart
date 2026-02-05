@@ -26,6 +26,7 @@ class LedgerScreen extends StatefulWidget {
 class _LedgerScreenState extends State<LedgerScreen> {
   String _searchQuery = '';
   DateTimeRange? _selectedDateRange;
+  final Set<String> _selectedLedgerIds = {};
 
   @override
   Widget build(BuildContext context) {
@@ -408,6 +409,20 @@ class _LedgerScreenState extends State<LedgerScreen> {
         // Sort by date descending
         allEntries.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
 
+        // Assign stable unique keys for selection
+        for (int i = 0; i < allEntries.length; i++) {
+          final item = allEntries[i]['item'];
+          if (item != null && item.id != null) {
+            allEntries[i]['uniqueKey'] = item.id;
+          } else {
+            allEntries[i]['uniqueKey'] = 'syn_${allEntries[i]['title']}_${allEntries[i]['date'].toString()}_$i';
+          }
+        }
+
+        double selectedSum = allEntries
+            .where((e) => _selectedLedgerIds.contains(e['uniqueKey']))
+            .fold(0.0, (sum, e) => sum + (e['amount'] as double));
+
         return Scaffold(
           appBar: AppBar(
             title: Text('${activeCenter.name} Ledger'),
@@ -425,6 +440,27 @@ class _LedgerScreenState extends State<LedgerScreen> {
                       '₹${displayBalance.toStringAsFixed(2)}',
                       style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.amber),
                     ),
+                    if (_selectedLedgerIds.isNotEmpty) ...[
+                      const Divider(height: 24, color: Colors.white24),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Selected Sum:', style: TextStyle(fontSize: 14, color: Colors.tealAccent, fontWeight: FontWeight.bold)),
+                          Row(
+                            children: [
+                              Text(
+                                '₹${selectedSum.toStringAsFixed(2)}',
+                                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.tealAccent),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+                                onPressed: () => setState(() => _selectedLedgerIds.clear()),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -509,13 +545,46 @@ class _LedgerScreenState extends State<LedgerScreen> {
                     final color = entry['color'] as Color;
                     final item = entry['item'];
 
+                    final String uniqueKey = entry['uniqueKey'];
+                    final bool isSelected = _selectedLedgerIds.contains(uniqueKey);
+
                     return InkWell(
-                        onTap: () => _showEntryDetails(context, item, type),
-                        child: Padding(
+                        onTap: () {
+                          setState(() {
+                            if (isSelected) {
+                              _selectedLedgerIds.remove(uniqueKey);
+                            } else {
+                              _selectedLedgerIds.add(uniqueKey);
+                            }
+                          });
+                        },
+                        onLongPress: () => _showEntryDetails(context, item, type),
+                        child: Container(
+                          color: isSelected ? Colors.teal.withOpacity(0.1) : null,
                           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              // Small checkbox as requested
+                              SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: Checkbox(
+                                  value: isSelected,
+                                  onChanged: (val) {
+                                    setState(() {
+                                      if (val == true) {
+                                        _selectedLedgerIds.add(uniqueKey);
+                                      } else {
+                                        _selectedLedgerIds.remove(uniqueKey);
+                                      }
+                                    });
+                                  },
+                                  activeColor: Colors.tealAccent,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
                               // Icon Circle
                               Container(
                                 width: 40,
@@ -582,7 +651,6 @@ class _LedgerScreenState extends State<LedgerScreen> {
                                     ),
                                 ],
                               ),
-
                             ],
                           ),
                         ),
