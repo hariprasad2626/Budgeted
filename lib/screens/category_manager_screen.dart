@@ -128,9 +128,9 @@ class CategoryManagerScreen extends StatelessWidget {
                 const SizedBox(height: 8),
                 _buildSummaryRow(
                   context, 
-                  'Excess to Wallet', 
-                  totalWalletSurplus, 
-                  valueColor: Colors.orange.shade800
+                  totalWalletSurplus < 0 ? 'Contribution from Wallet' : 'Contribution to wallet', 
+                  totalWalletSurplus.abs(), 
+                  valueColor: totalWalletSurplus < 0 ? Colors.green.shade800 : Colors.orange.shade800
                 ),
                 const SizedBox(height: 12),
                 ClipRRect(
@@ -428,8 +428,6 @@ class CategoryManagerScreen extends StatelessWidget {
              (t.fromCategoryId == cat.id || t.toCategoryId == cat.id);
     }).toList();
 
-    // 5. Initial Allocation (The category itself)
-    // We only add this if there is a target amount > 0, acting as the "Opening Balance" event
     final List<dynamic> allItems = [
       ...catExpenses,
       ...catDonations,
@@ -437,8 +435,45 @@ class CategoryManagerScreen extends StatelessWidget {
       ...catTransfers,
     ];
 
-    if (cat.targetAmount > 0) {
-      allItems.add(cat);
+    // 5. Budget Allotments
+    if (cat.budgetType == BudgetType.PME) {
+      // For PME: Add an entry for every ELAPSED month
+      final Set<String> elapsedMonths = {};
+      for (var period in provider.budgetPeriods.where((p) => p.isActive)) {
+        for (var month in period.getAllMonths()) {
+          if (provider.isMonthInPastOrCurrent(month)) {
+            elapsedMonths.add(month);
+          }
+        }
+      }
+      
+      for (var m in elapsedMonths) {
+        // Create a synthetic category object for each month to represent the allotment
+        DateTime allotmentDate;
+        String displayMonth = m;
+        try {
+           allotmentDate = DateFormat('yyyy-MM').parse(m);
+           displayMonth = DateFormat('MMM yyyy').format(allotmentDate);
+        } catch(_) { allotmentDate = DateTime.now(); }
+
+        final syntheticAllotment = BudgetCategory(
+          id: '${cat.id}_$m', 
+          costCenterId: cat.costCenterId,
+          category: cat.category,
+          subCategory: 'Monthly Budget: $displayMonth',
+          budgetType: BudgetType.PME,
+          targetAmount: cat.targetAmount,
+          isActive: true,
+          remarks: 'Budget Allotment for $displayMonth',
+          createdAt: allotmentDate,
+        );
+        allItems.add(syntheticAllotment);
+      }
+    } else {
+      // For OTE: Just add the category itself as the one-time allocation
+      if (cat.targetAmount > 0) {
+        allItems.add(cat);
+      }
     }
     
     Navigator.push(
@@ -447,16 +482,30 @@ class CategoryManagerScreen extends StatelessWidget {
         builder: (context) => TransactionHistoryScreen(
           title: '${cat.subCategory} History',
           items: allItems,
-          type: 'CategoryHistory', // Custom type to indicate mixed list
+          type: 'CategoryHistory', 
           addScreen: const AddExpenseScreen(), 
           contextEntityId: cat.id,
           showEntryDetails: (context, item, type) {
-            // Helper to show details based on type
-             if (item is Expense) {
-                // ... (Existing logic for Expense)
-             }
-             // For now, we can leave this empty or implement a generic detail viewer if needed.
-             // The list item row already shows key info.
+            // Basic detail viewer for simplicity
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: Text('$type Details'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Remarks/Desc: ${item.remarks ?? 'N/A'}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Text('Amount: ₹${item.amount ?? item.targetAmount}'),
+                    Text('Date: ${DateFormat('yyyy-MM-dd').format(item.date ?? item.dateCreated)}'),
+                  ],
+                ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+                ],
+              ),
+            );
           },
         ),
       ),

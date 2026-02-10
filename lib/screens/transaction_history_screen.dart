@@ -207,7 +207,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                         itemColor = Colors.blueAccent;
                         itemIcon = Icons.account_balance_wallet;
                         amountPrefix = '+'; // Initial allocation adds to balance
-                        categoryLabel = 'Initial Budget Allocation';
+                        categoryLabel = item.subCategory;
                       }
 
                       return InkWell(

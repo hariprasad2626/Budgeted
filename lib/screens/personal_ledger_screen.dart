@@ -6,6 +6,7 @@ import '../models/expense.dart';
 import '../models/fund_transfer.dart';
 import '../models/personal_adjustment.dart';
 import '../models/donation.dart';
+import '../models/budget_category.dart';
 import '../services/firestore_service.dart';
 import 'add_expense_screen.dart';
 import 'add_donation_screen.dart';
@@ -62,38 +63,134 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
 
   Future<void> _settleSelectedExpenses(List<Expense> allPending) async {
     if (_selectedExpenseIds.isEmpty) return;
-
+    
+    final provider = Provider.of<AccountingProvider>(context, listen: false);
     final service = FirestoreService();
-    int count = 0;
     
-    for (var id in _selectedExpenseIds) {
-      try {
-        final expense = allPending.firstWhere((e) => e.id == id);
-        final updated = Expense(
-          id: expense.id,
-          costCenterId: expense.costCenterId,
-          categoryId: expense.categoryId,
-          amount: expense.amount,
-          budgetType: expense.budgetType,
-          moneySource: expense.moneySource,
-          date: expense.date,
-          remarks: expense.remarks,
-          isSettled: true,
-        );
-        await service.updateExpense(updated);
-        count++;
-      } catch (e) {
-        debugPrint('Error settling expense $id: $e');
-      }
-    }
-    
-    setState(() {
-      _selectedExpenseIds.clear();
-    });
+    // Fetch all categories for the selection
+    final allCategories = await service.getAllCategories();
+    final costCenters = provider.costCenters;
 
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$count Expenses Settled!')));
-    }
+    if (!mounted) return;
+
+    String? selectedCategoryId;
+    String? selectedCostCenterId;
+    bool useExisting = false;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final filteredCats = allCategories.where((c) => c.costCenterId == selectedCostCenterId).toList();
+          
+          return AlertDialog(
+            title: Text('Settle ${_selectedExpenseIds.length} Expenses'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Classify these entries for the Cost Center Ledger:'),
+                  const SizedBox(height: 16),
+                  CheckboxListTile(
+                    title: const Text('Settle as recorded (Keep existing categories)'),
+                    value: useExisting, 
+                    onChanged: (val) {
+                      setDialogState(() {
+                        useExisting = val ?? false;
+                        if (useExisting) {
+                          selectedCostCenterId = null;
+                          selectedCategoryId = null;
+                        }
+                      });
+                    },
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  if (!useExisting) ...[
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'Select Cost Center'),
+                      value: selectedCostCenterId,
+                      items: costCenters.map((cc) => DropdownMenuItem(value: cc.id, child: Text(cc.name))).toList(),
+                      onChanged: (val) {
+                        setDialogState(() {
+                          selectedCostCenterId = val;
+                          selectedCategoryId = null;
+                        });
+                      },
+                    ),
+                    if (selectedCostCenterId != null) ...[
+                      const SizedBox(height: 16),
+                      DropdownButtonFormField<String>(
+                        isExpanded: true,
+                        decoration: const InputDecoration(labelText: 'Select Category'),
+                        value: selectedCategoryId,
+                        items: filteredCats.map((c) => DropdownMenuItem(value: c.id, child: Text('${c.category} > ${c.subCategory}'))).toList(),
+                        onChanged: (val) {
+                          setDialogState(() => selectedCategoryId = val);
+                        },
+                      ),
+                    ],
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              ElevatedButton(
+                onPressed: (useExisting || selectedCategoryId != null) ? () async {
+                  int count = 0;
+                  BudgetCategory? targetCat;
+                  if (!useExisting) {
+                    targetCat = allCategories.firstWhere((c) => c.id == selectedCategoryId);
+                  }
+                  
+                  for (var id in _selectedExpenseIds) {
+                    try {
+                      final expense = allPending.firstWhere((e) => e.id == id);
+                      
+                      // Use target info if provided, otherwise keep existing
+                      final finalCcId = targetCat?.costCenterId ?? expense.costCenterId;
+                      final finalCatId = targetCat?.id ?? expense.categoryId;
+                      final finalBType = targetCat?.budgetType ?? expense.budgetType;
+
+                      final updated = Expense(
+                        id: expense.id,
+                        costCenterId: finalCcId,
+                        categoryId: finalCatId,
+                        amount: expense.amount,
+                        budgetType: finalBType,
+                        moneySource: expense.moneySource,
+                        date: expense.date,
+                        remarks: expense.remarks,
+                        isSettled: true,
+                      );
+                      await service.updateExpense(updated);
+                      count++;
+                    } catch (e) {
+                      debugPrint('Error settling expense: $e');
+                    }
+                  }
+                  
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  
+                  setState(() {
+                    _selectedExpenseIds.clear();
+                  });
+                  
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$count Expenses Settled!')));
+                  }
+                } : null,
+                child: const Text('Settle Now'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   String _getCostCenterName(AccountingProvider provider, String id) {
@@ -360,43 +457,67 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
               final isSelected = _selectedExpenseIds.contains(e.id);
               final catPath = _getCategoryPath(provider, e.categoryId);
 
-              // Bank Statement Style Row
+              // Bank Statement Style Row (Consistent with Ledger and History)
               return InkWell(
-                onTap: () => _toggleSelection(e.id),
+                onTap: () => _showEntryDetails(context, e, 'Expense'),
                 child: Container(
-                  color: isSelected ? Colors.teal.withOpacity(0.15) : null,
+                  color: isSelected ? Colors.teal.withOpacity(0.1) : null,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
                     children: [
-                      Checkbox(
-                        value: isSelected,
-                        onChanged: (val) => _toggleSelection(e.id),
-                        activeColor: Colors.tealAccent,
-                        visualDensity: VisualDensity.compact,
+                      // Checkbox for selection
+                      SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: Checkbox(
+                          value: isSelected,
+                          onChanged: (val) => _toggleSelection(e.id),
+                          activeColor: Colors.tealAccent,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                        ),
                       ),
                       const SizedBox(width: 8),
+                      // Icon Circle
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.arrow_upward, color: Colors.redAccent, size: 20),
+                      ),
+                      const SizedBox(width: 16),
+                      // Details
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(DateFormat('dd MMM').format(e.date), style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                            const SizedBox(height: 2),
-                            Text(e.remarks, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: provider.isDarkMode ? null : Colors.black87)),
-                            const SizedBox(height: 2),
-                            Text('$centerName -> $catPath', style: TextStyle(fontSize: 12, color: provider.isDarkMode ? Colors.white70 : Colors.black54)),
+                            Text(
+                              DateFormat('MMM dd, yyyy').format(e.date),
+                              style: TextStyle(color: provider.isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600, fontSize: 11),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              e.remarks,
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: provider.isDarkMode ? null : Colors.black87),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                catPath,
+                                style: TextStyle(color: provider.isDarkMode ? Colors.white60 : Colors.black54, fontSize: 12),
+                              ),
+                            ),
                           ],
                         ),
                       ),
+                      // Amount
                       Text(
-                        '-${e.amount.toStringAsFixed(0)}',
-                        style: const TextStyle(color: Colors.redAccent, fontSize: 15, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        icon: const Icon(Icons.info_outline, size: 20, color: Colors.tealAccent),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        onPressed: () => _showEntryDetails(context, e, 'Expense'),
+                        '-₹${e.amount.toStringAsFixed(0)}',
+                        style: const TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),

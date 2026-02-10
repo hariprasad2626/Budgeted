@@ -38,6 +38,13 @@ class FirestoreService {
             .toList());
   }
 
+  Future<List<BudgetCategory>> getAllCategories() async {
+    final snapshot = await _db.collection('budget_categories').get();
+    return snapshot.docs
+        .map((doc) => BudgetCategory.fromMap(doc.id, doc.data() as Map<String, dynamic>))
+        .toList();
+  }
+
   Future<void> addCategory(BudgetCategory category) {
     return _db.collection('budget_categories').add(category.toMap());
   }

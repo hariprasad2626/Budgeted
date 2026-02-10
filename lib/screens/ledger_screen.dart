@@ -238,7 +238,12 @@ class _LedgerScreenState extends State<LedgerScreen> {
                 'categoryPath': catName,
               };
           }),
-           ...provider.transfers.where((t) => t.costCenterId == activeCenter.id && t.amount != 0).expand((t) {
+           ...provider.transfers.where((t) {
+                final isDirect = t.costCenterId == activeCenter.id;
+                final isSource = t.fromCategoryId != null && provider.categories.any((c) => c.id == t.fromCategoryId);
+                final isDest = t.toCategoryId != null && provider.categories.any((c) => c.id == t.toCategoryId);
+                return (isDirect || isSource || isDest) && t.amount != 0;
+              }).expand((t) {
                 if (t.type == TransferType.TO_PERSONAL) {
                   // Determine source budget type for the advance
                   String advBudgetType = 'WALLET';
@@ -267,64 +272,76 @@ class _LedgerScreenState extends State<LedgerScreen> {
                     'categoryPath': path,
                   }];
                 } else {
-                  // Category-to-Category (or Category-to-Wallet)
-                  List<Map<String, dynamic>> entries = [];
-                  
-                  String? fromBType;
-                  String fromName = 'Wallet/Unallocated';
-                  if (t.fromCategoryId != null) {
-                    try {
-                      final cat = provider.categories.firstWhere((c) => c.id == t.fromCategoryId);
-                      fromBType = cat.budgetType.toString().split('.').last;
-                      fromName = '${cat.category} -> ${cat.subCategory}';
-                    } catch (_) { fromBType = 'WALLET'; }
-                  } else {
-                    fromBType = 'WALLET';
-                  }
+                   // Category-to-Category (or Category-to-Wallet)
+                   final bool fromInCC = t.fromCategoryId != null && provider.categories.any((c) => c.id == t.fromCategoryId);
+                   final bool toInCC = t.toCategoryId != null && provider.categories.any((c) => c.id == t.toCategoryId);
 
-                  String? toBType;
-                  String toName = 'Wallet/Unallocated';
-                  if (t.toCategoryId != null) {
-                    try {
-                      final cat = provider.categories.firstWhere((c) => c.id == t.toCategoryId);
-                      toBType = cat.budgetType.toString().split('.').last;
-                      toName = '${cat.category} -> ${cat.subCategory}';
-                    } catch (_) { toBType = 'WALLET'; }
-                  } else {
-                    toBType = 'WALLET';
-                  }
+                   // HIDE pure internal category-to-category within SAME CC to reduce noise
+                   if (fromInCC && toInCC) {
+                      return <Map<String, dynamic>>[];
+                   }
 
-                  // Outgoing Debit
-                  entries.add({
-                    'type': 'Internal Transfer',
-                    'source': 'Outgoing',
-                    'amount': -t.amount,
-                    'date': t.date,
-                    'title': 'Trf Out: ${t.remarks}',
-                    'color': Colors.redAccent,
-                    'item': t,
-                    'budgetType': fromBType,
-                    'status': 'Debited',
-                    'statusColor': Colors.redAccent,
-                    'categoryPath': 'From $fromName -> To $toName',
-                  });
+                   List<Map<String, dynamic>> entries = [];
+                   
+                   String? fromBType;
+                   String fromName = 'Wallet/Unallocated';
+                   if (t.fromCategoryId != null) {
+                     try {
+                       final cat = provider.categories.firstWhere((c) => c.id == t.fromCategoryId);
+                       fromBType = cat.budgetType.toString().split('.').last;
+                       fromName = '${cat.category} -> ${cat.subCategory}';
+                     } catch (_) { fromBType = 'WALLET'; }
+                   } else {
+                     fromBType = 'WALLET';
+                   }
 
-                  // Incoming Credit
-                  entries.add({
-                    'type': 'Internal Transfer',
-                    'source': 'Incoming',
-                    'amount': t.amount,
-                    'date': t.date,
-                    'title': 'Trf In: ${t.remarks}',
-                    'color': Colors.greenAccent,
-                    'item': t,
-                    'budgetType': toBType,
-                    'status': 'Received',
-                    'statusColor': Colors.greenAccent,
-                    'categoryPath': 'From $fromName -> To $toName',
-                  });
+                   String? toBType;
+                   String toName = 'Wallet/Unallocated';
+                   if (t.toCategoryId != null) {
+                     try {
+                       final cat = provider.categories.firstWhere((c) => c.id == t.toCategoryId);
+                       toBType = cat.budgetType.toString().split('.').last;
+                       toName = '${cat.category} -> ${cat.subCategory}';
+                     } catch (_) { toBType = 'WALLET'; }
+                   } else {
+                     toBType = 'WALLET';
+                   }
 
-                  return entries;
+                   // If money COMES FROM our CC (Category or Wallet), add a Debit
+                   if (fromInCC || (t.fromCategoryId == null && t.costCenterId == activeCenter.id)) {
+                      entries.add({
+                        'type': 'Internal Transfer',
+                        'source': 'Outgoing',
+                        'amount': -t.amount,
+                        'date': t.date,
+                        'title': 'Trf Out: ${t.remarks}',
+                        'color': Colors.redAccent,
+                        'item': t,
+                        'budgetType': fromBType,
+                        'status': 'Debited',
+                        'statusColor': Colors.redAccent,
+                        'categoryPath': 'From $fromName -> To $toName',
+                      });
+                   }
+
+                   // If money GOES TO our CC (Category or Wallet), add a Credit
+                   if (toInCC || (t.toCategoryId == null && t.costCenterId == activeCenter.id)) {
+                      entries.add({
+                        'type': 'Internal Transfer',
+                        'source': 'Incoming',
+                        'amount': t.amount,
+                        'date': t.date,
+                        'title': 'Trf In: ${t.remarks}',
+                        'color': Colors.greenAccent,
+                        'item': t,
+                        'budgetType': toBType,
+                        'status': 'Received',
+                        'statusColor': Colors.greenAccent,
+                        'categoryPath': 'From $fromName -> To $toName',
+                      });
+                   }
+
+                   return entries;
                 }
            }),
            ...provider.centerAdjustments.where((a) => a.amount != 0).map((a) {
@@ -358,10 +375,6 @@ class _LedgerScreenState extends State<LedgerScreen> {
                   bType = cat.budgetType.toString().split('.').last;
                 } catch (_) {}
 
-                // Every personal expense produces TWO ledger entries for perfect reconciliation:
-                // 1. The usage of the category's budget (Debit)
-                // 2. The credit to the advance/wallet (Credit)
-                
                 return [
                   {
                     'type': 'Expense',
@@ -914,7 +927,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
                 } else {
                   _showForm(context, AddCenterAdjustmentScreen(adjustmentToEdit: item as CostCenterAdjustment));
                 }
-              } else if (type == 'Transfer') {
+              } else if (type == 'Transfer' || type == 'Internal Transfer') {
                 _showForm(context, AddTransferScreen(transferToEdit: item as FundTransfer));
               }
             },
@@ -943,8 +956,12 @@ class _LedgerScreenState extends State<LedgerScreen> {
               final service = FirestoreService();
               if (type == 'Expense') await service.deleteExpense(entryId);
               else if (type == 'Donation') await service.deleteDonation(entryId);
-              else if (type == 'Transfer') await service.deleteFundTransfer(entryId);
-              else if (type == 'Adjustment') await service.deleteCostCenterAdjustment(entryId);
+              else if (type == 'Transfer' || type == 'Internal Transfer') await service.deleteFundTransfer(entryId);
+              else if (type == 'Adjustment') {
+                // Determine if it's a Personal or Cost Center adjustment by checking its properties 
+                // but since Ledger mostly shows Cost Center adjustments:
+                await service.deleteCostCenterAdjustment(entryId);
+              }
               
               if (ctx.mounted) {
                 Navigator.pop(ctx); // Close confirmation
