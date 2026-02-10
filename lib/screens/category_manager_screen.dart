@@ -5,6 +5,7 @@ import '../providers/accounting_provider.dart';
 import '../models/budget_category.dart';
 import '../models/personal_adjustment.dart';
 import '../models/cost_center_adjustment.dart';
+import '../models/fund_transfer.dart';
 import '../services/firestore_service.dart';
 import 'add_expense_screen.dart';
 import 'transaction_history_screen.dart';
@@ -87,9 +88,24 @@ class CategoryManagerScreen extends StatelessWidget {
       final outgoing = provider.transfers
         .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == cat.id)
         .fold(0.0, (sum, t) => sum + t.amount);
+
+      final incoming = provider.transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == cat.id)
+        .fold(0.0, (sum, t) => sum + t.amount);
       
-      totalWalletSurplus += outgoing;
+      // Net flow for this category: (Out to Wallet) - (In from Wallet)
+      // Positive = Net Excess sent to Wallet
+      // Negative = Net Subsidy received from Wallet
+      totalWalletSurplus += (outgoing - incoming);
     }
+    
+    // We only want to show "Excess" if it's positive. If negative, it means the section is consuming Wallet funds.
+    // However, for the summary "Excess to Wallet", we might just show the signed value or clamp?
+    // User asked "how much ... is in the wallet". Implies positive.
+    // If negative, maybe show "Added from Wallet"?
+    // For now, let's keep it signed but labeled "Net Excess to Wallet" or similar?
+    // User asked "excess from that section".
+    // Let's stick to the raw net sum.
     
     double progress = totalBudget > 0 ? (totalSpent / totalBudget).clamp(0.0, 1.0) : 0.0;
     bool isOver = totalSpent > totalBudget;
