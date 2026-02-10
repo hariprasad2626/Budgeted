@@ -68,12 +68,27 @@ class CategoryManagerScreen extends StatelessWidget {
     // Calculate Totals for Summary
     double totalBudget = 0;
     double totalSpent = 0;
+    double totalWalletSurplus = 0;
     
     // We iterate items to sum up statuses
     for (var cat in items) {
       final status = provider.getCategoryStatus(cat);
       totalBudget += status['total_limit'] ?? 0;
       totalSpent += status['spent'] ?? 0;
+      
+      // Calculate "Surplus Moved to Wallet"
+      // This is outgoing transfers (Category -> Wallet).
+      // Logic: transfers = Incoming - Outgoing. If negative, it means net outgoing.
+      // But we specifically want separate totals if possible?
+      // getCategoryStatus returns 'transfers' as net.
+      // Let's iterate transfers manually for this specific metric for better accuracy if 'status' doesn't expose it split.
+      // Actually, let's use the provider logic directly here for filtering.
+      
+      final outgoing = provider.transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == cat.id)
+        .fold(0.0, (sum, t) => sum + t.amount);
+      
+      totalWalletSurplus += outgoing;
     }
     
     double progress = totalBudget > 0 ? (totalSpent / totalBudget).clamp(0.0, 1.0) : 0.0;
@@ -106,7 +121,7 @@ class CategoryManagerScreen extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Total ${type.name} Budget', 
+                      'Total ${type.name} Limit', 
                       style: TextStyle(
                         fontWeight: FontWeight.bold, 
                         color: Theme.of(context).colorScheme.onTertiaryContainer
@@ -146,6 +161,20 @@ class CategoryManagerScreen extends StatelessWidget {
                       style: TextStyle(
                         fontWeight: FontWeight.bold, 
                         color: (totalBudget - totalSpent) < 0 ? Colors.red : Colors.green.shade800
+                      )
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Excess to Wallet', style: TextStyle(color: Theme.of(context).colorScheme.onTertiaryContainer.withOpacity(0.7))),
+                    Text(
+                      '₹${totalWalletSurplus.toStringAsFixed(0)}', 
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold, 
+                        color: Colors.orange.shade800
                       )
                     ),
                   ],
@@ -401,18 +430,55 @@ class CategoryManagerScreen extends StatelessWidget {
 
   void _showTransactions(BuildContext context, BudgetCategory cat) {
     final provider = Provider.of<AccountingProvider>(context, listen: false);
+    
+    // 1. Expenses
     final catExpenses = provider.expenses.where((e) => e.categoryId == cat.id).toList();
+
+    // 2. Donations (Merged to this category)
+    final catDonations = provider.donations
+        .where((d) => d.mode == DonationMode.MERGE_TO_BUDGET && d.budgetCategoryId == cat.id)
+        .toList();
+
+    // 3. Adjustments
+    final catAdjustments = provider.centerAdjustments
+        .where((a) => a.categoryId == cat.id)
+        .toList();
+
+    // 4. Transfers (In/Out)
+    final catTransfers = provider.transfers.where((t) {
+      return t.type == TransferType.CATEGORY_TO_CATEGORY && 
+             (t.fromCategoryId == cat.id || t.toCategoryId == cat.id);
+    }).toList();
+
+    // 5. Initial Allocation (The category itself)
+    // We only add this if there is a target amount > 0, acting as the "Opening Balance" event
+    final List<dynamic> allItems = [
+      ...catExpenses,
+      ...catDonations,
+      ...catAdjustments,
+      ...catTransfers,
+    ];
+
+    if (cat.targetAmount > 0) {
+      allItems.add(cat);
+    }
     
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => TransactionHistoryScreen(
           title: '${cat.subCategory} History',
-          items: catExpenses,
-          type: 'Expense',
+          items: allItems,
+          type: 'CategoryHistory', // Custom type to indicate mixed list
           addScreen: const AddExpenseScreen(), 
+          contextEntityId: cat.id,
           showEntryDetails: (context, item, type) {
-            // Re-use detail viewer logic if needed
+            // Helper to show details based on type
+             if (item is Expense) {
+                // ... (Existing logic for Expense)
+             }
+             // For now, we can leave this empty or implement a generic detail viewer if needed.
+             // The list item row already shows key info.
           },
         ),
       ),

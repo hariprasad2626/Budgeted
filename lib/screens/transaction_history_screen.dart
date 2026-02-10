@@ -8,12 +8,15 @@ import '../models/fund_transfer.dart';
 import '../models/personal_adjustment.dart';
 import '../models/cost_center_adjustment.dart';
 
+import '../models/budget_category.dart';
+
 class TransactionHistoryScreen extends StatefulWidget {
   final String title;
   final List<dynamic> items;
   final String type;
   final Widget addScreen;
   final Function(BuildContext, dynamic, String) showEntryDetails;
+  final String? contextEntityId; // Optional: ID of the entity (Category/CostCenter) we are viewing history for
 
   const TransactionHistoryScreen({
     super.key,
@@ -22,6 +25,7 @@ class TransactionHistoryScreen extends StatefulWidget {
     required this.type,
     required this.addScreen,
     required this.showEntryDetails,
+    this.contextEntityId,
   });
 
   @override
@@ -41,10 +45,23 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
         .fold(0.0, (sum, item) {
           double amount = item.amount ?? 0.0;
           bool isCredit = false;
+          
           if (item is Donation) isCredit = true;
-          else if (item is FundTransfer && item.type != TransferType.CATEGORY_TO_CATEGORY) isCredit = true;
+          else if (item is FundTransfer) {
+             if (item.type != TransferType.CATEGORY_TO_CATEGORY) {
+               isCredit = true; // Advance
+             } else {
+               // Context-aware check
+               if (widget.contextEntityId != null && item.toCategoryId == widget.contextEntityId) {
+                 isCredit = true;
+               } else {
+                 isCredit = false; 
+               }
+             }
+          }
           else if (item is PersonalAdjustment && item.type == AdjustmentType.CREDIT) isCredit = true;
           else if (item is CostCenterAdjustment && item.type == AdjustmentType.CREDIT) isCredit = true;
+          else if (item is BudgetCategory) isCredit = true; 
           
           return sum + (isCredit ? amount : -amount);
         });
@@ -128,9 +145,6 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                         categoryLabel = 'Donation Received';
                       } else if (item is FundTransfer) {
                         if (item.type == TransferType.CATEGORY_TO_CATEGORY) {
-                           itemColor = Colors.grey;
-                           itemIcon = Icons.swap_horiz;
-                           amountPrefix = '';
                            String fromName = 'Unallocated';
                            String toName = 'Unallocated';
                            try {
@@ -143,7 +157,27 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                                 toName = t.subCategory;
                               }
                            } catch (_) {}
+                           
                            categoryLabel = '$fromName -> $toName';
+
+                           if (widget.contextEntityId != null) {
+                             if (item.toCategoryId == widget.contextEntityId) {
+                               isCredit = true;
+                               itemColor = Colors.greenAccent;
+                               itemIcon = Icons.arrow_downward;
+                               amountPrefix = '+';
+                             } else {
+                               isCredit = false;
+                               itemColor = Colors.orangeAccent;
+                               itemIcon = Icons.arrow_upward;
+                               amountPrefix = '-';
+                             }
+                           } else {
+                             // Fallback for non-context view
+                             itemColor = Colors.grey;
+                             itemIcon = Icons.swap_horiz;
+                             amountPrefix = '';
+                           }
                         } else {
                            isCredit = true;
                            itemColor = Colors.greenAccent;
@@ -168,6 +202,12 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
                         } catch (_) {
                           categoryLabel = 'Adjustment';
                         }
+                      } else if (item is BudgetCategory) {
+                        isCredit = true;
+                        itemColor = Colors.blueAccent;
+                        itemIcon = Icons.account_balance_wallet;
+                        amountPrefix = '+'; // Initial allocation adds to balance
+                        categoryLabel = 'Initial Budget Allocation';
                       }
 
                       return InkWell(

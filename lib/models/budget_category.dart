@@ -27,6 +27,8 @@ class BudgetCategory {
 
   // Getter for UI compatibility
   String get name => category;
+  double get amount => targetAmount;
+  DateTime get date => createdAt;
 
   Map<String, dynamic> toMap() {
     return {
