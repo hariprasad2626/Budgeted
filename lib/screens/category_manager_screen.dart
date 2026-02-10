@@ -408,7 +408,9 @@ class CategoryManagerScreen extends StatelessWidget {
     final provider = Provider.of<AccountingProvider>(context, listen: false);
     
     // 1. Expenses
-    final catExpenses = provider.expenses.where((e) => e.categoryId == cat.id).toList();
+    final catExpenses = provider.expenses
+        .where((e) => e.categoryId == cat.id && (e.moneySource != MoneySource.PERSONAL || e.isSettled))
+        .toList();
 
     // 2. Donations (Merged to this category)
     final catDonations = provider.donations

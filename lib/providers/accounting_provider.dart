@@ -159,11 +159,21 @@ class AccountingProvider with ChangeNotifier {
       CacheService.saveList('adjustments', data);
       notifyListeners();
     });
-    _service.getExpenses().listen((data) {
+    
+    // Unified Expense Listener
+    _expSub?.cancel(); // Reuse the same variable for the global listener if needed, but let's just use it once
+    _expSub = _service.getExpenses().listen((data) {
       _allExpenses = data;
       CacheService.saveList('allExpenses', data);
+      
+      // Update local expenses if cost center is active
+      if (_activeCostCenterId != null) {
+        _expenses = _allExpenses.where((e) => e.costCenterId == _activeCostCenterId).toList();
+      }
+      
       notifyListeners();
     });
+
     _fixedSub = _service.getFixedAmounts().listen((data) {
       _fixedAmounts = data;
       CacheService.saveList('fixedAmounts', data);
@@ -191,6 +201,12 @@ class AccountingProvider with ChangeNotifier {
     _activeCostCenterId = id;
     CacheService.saveValue('activeCostCenterId', id);
     _subscribeToCenterData(id);
+    
+    // Refresh local expenses from the already loaded allExpenses
+    if (_allExpenses.isNotEmpty) {
+      _expenses = _allExpenses.where((e) => e.costCenterId == id).toList();
+    }
+    
     _loadCache(); // Quick reload of center specific cached data
     notifyListeners();
   }
@@ -217,7 +233,7 @@ class AccountingProvider with ChangeNotifier {
     _catSub?.cancel();
     _allocSub?.cancel();
     _donSub?.cancel();
-    _expSub?.cancel();
+    // _expSub is now global and handled in _initGlobal
     _adjSub?.cancel();
     _centerRealSub?.cancel();
     _budgetPeriodSub?.cancel();
@@ -240,12 +256,7 @@ class AccountingProvider with ChangeNotifier {
       _lastSync = DateTime.now();
       notifyListeners();
     });
-    _expSub = _service.getExpenses(costCenterId: id).listen((data) {
-      _expenses = data;
-      CacheService.saveList('expenses_$id', data);
-      _lastSync = DateTime.now();
-      notifyListeners();
-    });
+    // Local expense filtering is now reactive to _allExpenses updates
     _adjSub = _service.getCostCenterAdjustments(id).listen((data) {
       _centerAdjustments = data;
       CacheService.saveList('centerAdjustments_$id', data);
