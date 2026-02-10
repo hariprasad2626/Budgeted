@@ -349,7 +349,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
                     'categoryPath': 'Manual Adjustment',
                 };
            }),
-           ...provider.expenses.where((e) => e.moneySource == MoneySource.PERSONAL && e.amount != 0).expand((e) {
+           ...provider.expenses.where((e) => e.moneySource == MoneySource.PERSONAL && e.amount != 0 && e.isSettled).expand((e) {
                 String catName = 'Global/Wallet';
                 String bType = 'WALLET';
                 try {

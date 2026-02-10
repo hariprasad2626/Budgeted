@@ -425,46 +425,50 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               ],
             ),
             const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [Colors.teal.shade900, Colors.teal.shade700]),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))],
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Expected Balance', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                    IconButton(
-                      icon: const Icon(Icons.account_balance_wallet, color: Colors.tealAccent, size: 20),
-                      onPressed: () => _showUpdateRealBalanceDialog(context, provider),
-                      tooltip: 'Set Actual Cash',
-                      constraints: const BoxConstraints(),
-                      padding: EdgeInsets.zero,
-                    ),
-                  ],
-                ),
-                Text(
-                  '₹${provider.personalBalance.toStringAsFixed(2)}',
-                  style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
-                ),
-                const Divider(color: Colors.white12, height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildReconcileStat('Actual Balance', provider.realBalance, Colors.white),
-                    _buildReconcileStat(
-                      'Gap', 
-                      provider.personalDiscrepancy, 
-                      provider.personalDiscrepancy == 0 ? Colors.greenAccent : (provider.personalDiscrepancy > 0 ? Colors.orangeAccent : Colors.redAccent)
-                    ),
-                  ],
-                ),
-              ],
+          InkWell(
+            onTap: () => Navigator.pushNamed(context, '/personal-ledger'),
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [Colors.teal.shade900, Colors.teal.shade700]),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 5))],
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Expected Balance', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                      IconButton(
+                        icon: const Icon(Icons.account_balance_wallet, color: Colors.tealAccent, size: 20),
+                        onPressed: () => _showUpdateRealBalanceDialog(context, provider),
+                        tooltip: 'Set Actual Cash',
+                        constraints: const BoxConstraints(),
+                        padding: EdgeInsets.zero,
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '₹${provider.personalBalance.toStringAsFixed(2)}',
+                    style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                  ),
+                  const Divider(color: Colors.white12, height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _buildReconcileStat('Actual Balance', provider.realBalance, Colors.white),
+                      _buildReconcileStat(
+                        'Gap', 
+                        provider.personalDiscrepancy, 
+                        provider.personalDiscrepancy == 0 ? Colors.greenAccent : (provider.personalDiscrepancy > 0 ? Colors.orangeAccent : Colors.redAccent)
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 24),
@@ -533,6 +537,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             leading: const Icon(Icons.corporate_fare_outlined, color: Colors.tealAccent),
             title: const Text('Manage Cost Centers'),
             onTap: () { Navigator.pop(context); Navigator.pushNamed(context, '/manage-cost-centers'); },
+          ),
+          ListTile(
+            leading: const Icon(Icons.receipt_long, color: Colors.tealAccent),
+            title: const Text('Personal Ledger'),
+            onTap: () { Navigator.pop(context); Navigator.pushNamed(context, '/personal-ledger'); },
           ),
           Consumer<AccountingProvider>(
             builder: (context, provider, _) {

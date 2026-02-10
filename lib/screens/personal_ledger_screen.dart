@@ -391,6 +391,13 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
                         '-${e.amount.toStringAsFixed(0)}',
                         style: const TextStyle(color: Colors.redAccent, fontSize: 15, fontWeight: FontWeight.bold),
                       ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.info_outline, size: 20, color: Colors.tealAccent),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _showEntryDetails(context, e, 'Expense'),
+                      ),
                     ],
                   ),
                 ),
