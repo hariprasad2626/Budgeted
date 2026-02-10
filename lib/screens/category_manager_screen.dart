@@ -7,6 +7,8 @@ import '../models/personal_adjustment.dart';
 import '../models/cost_center_adjustment.dart';
 import '../models/fund_transfer.dart';
 import '../services/firestore_service.dart';
+import '../models/expense.dart';
+import '../models/donation.dart';
 import 'add_expense_screen.dart';
 import 'transaction_history_screen.dart';
 
