@@ -66,66 +66,46 @@ class CategoryManagerScreen extends StatelessWidget {
   }
 
   Widget _buildCategoryList(BuildContext context, AccountingProvider provider, List<BudgetCategory> items, BudgetType type) {
-    // Calculate Totals for Summary
-    double totalBudget = 0;
-    double totalSpent = 0;
-    double totalWalletSurplus = 0;
-    
-    // We iterate items to sum up statuses
-    for (var cat in items) {
-      final status = provider.getCategoryStatus(cat);
-      totalBudget += status['total_limit'] ?? 0;
-      totalSpent += status['spent'] ?? 0;
-      
-      // Calculate "Surplus Moved to Wallet"
-      // This is outgoing transfers (Category -> Wallet).
-      // Logic: transfers = Incoming - Outgoing. If negative, it means net outgoing.
-      // But we specifically want separate totals if possible?
-      // getCategoryStatus returns 'transfers' as net.
-      // Let's iterate transfers manually for this specific metric for better accuracy if 'status' doesn't expose it split.
-      // Actually, let's use the provider logic directly here for filtering.
-      
-      final outgoing = provider.transfers
-        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == cat.id)
-        .fold(0.0, (sum, t) => sum + t.amount);
-
-      final incoming = provider.transfers
-        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == cat.id)
-        .fold(0.0, (sum, t) => sum + t.amount);
-      
-      // Net flow for this category: (Out to Wallet) - (In from Wallet)
-      // Positive = Net Excess sent to Wallet
-      // Negative = Net Subsidy received from Wallet
-      totalWalletSurplus += (outgoing - incoming);
-    }
-    
-    // We only want to show "Excess" if it's positive. If negative, it means the section is consuming Wallet funds.
-    // However, for the summary "Excess to Wallet", we might just show the signed value or clamp?
-    // User asked "how much ... is in the wallet". Implies positive.
-    // If negative, maybe show "Added from Wallet"?
-    // For now, let's keep it signed but labeled "Net Excess to Wallet" or similar?
-    // User asked "excess from that section".
-    // Let's stick to the raw net sum.
-    
-    double progress = totalBudget > 0 ? (totalSpent / totalBudget).clamp(0.0, 1.0) : 0.0;
-    bool isOver = totalSpent > totalBudget;
-
     if (items.isEmpty) {
       return const Center(child: Text('No categories in this section.'));
     }
 
-    // Group items by main category
+    // 1. Calculate Summary Totals
+    double totalBudget = 0;
+    double totalSpent = 0;
+    double totalWalletSurplus = 0;
+
+    for (var cat in items) {
+      final status = provider.getCategoryStatus(cat);
+      totalBudget += status['total_limit'] ?? 0;
+      totalSpent += status['spent'] ?? 0;
+
+      // Calculate Net Flow specifically for Wallet Surplus
+      // Outgoing (To Wallet) - Incoming (From Wallet)
+      final outgoingToWallet = provider.transfers
+          .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == cat.id && t.toCategoryId == null)
+          .fold(0.0, (sum, t) => sum + t.amount);
+
+      final incomingFromWallet = provider.transfers
+          .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == cat.id && t.fromCategoryId == null)
+          .fold(0.0, (sum, t) => sum + t.amount);
+
+      totalWalletSurplus += (outgoingToWallet - incomingFromWallet);
+    }
+
+    double progress = totalBudget > 0 ? (totalSpent / totalBudget).clamp(0.0, 1.0) : 0.0;
+    bool isOver = totalSpent > totalBudget;
+
+    // 2. Group Categories
     final Map<String, List<BudgetCategory>> grouped = {};
     for (var item in items) {
       grouped.putIfAbsent(item.category, () => []).add(item);
     }
-    
-    // Sort groups by name
     final sortedKeys = grouped.keys.toList()..sort();
 
     return Column(
       children: [
-        // Summary Card
+        // --- Summary Card ---
         Card(
           margin: const EdgeInsets.all(16),
           color: Theme.of(context).colorScheme.tertiaryContainer,
@@ -133,67 +113,22 @@ class CategoryManagerScreen extends StatelessWidget {
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Total ${type.name} Limit', 
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold, 
-                        color: Theme.of(context).colorScheme.onTertiaryContainer
-                      )
-                    ),
-                    Text(
-                      '₹${totalBudget.toStringAsFixed(0)}', 
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold, 
-                        fontSize: 16,
-                        color: Theme.of(context).colorScheme.onTertiaryContainer
-                      )
-                    ),
-                  ],
-                ),
+                _buildSummaryRow(context, 'Total ${type.name} Limit', totalBudget, isBoldTitle: true, fontSize: 16),
                 const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Total Spent', style: TextStyle(color: Theme.of(context).colorScheme.onTertiaryContainer.withOpacity(0.7))),
-                    Text(
-                      '₹${totalSpent.toStringAsFixed(0)}', 
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold, 
-                        color: isOver ? Colors.red : Theme.of(context).colorScheme.onTertiaryContainer
-                      )
-                    ),
-                  ],
-                ),
+                _buildSummaryRow(context, 'Total Spent', totalSpent, valueColor: isOver ? Colors.red : null),
                 const SizedBox(height: 4),
-                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Pending Balance', style: TextStyle(color: Theme.of(context).colorScheme.onTertiaryContainer.withOpacity(0.7))),
-                    Text(
-                      '₹${(totalBudget - totalSpent).toStringAsFixed(0)}', 
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold, 
-                        color: (totalBudget - totalSpent) < 0 ? Colors.red : Colors.green.shade800
-                      )
-                    ),
-                  ],
+                _buildSummaryRow(
+                  context, 
+                  'Pending Balance', 
+                  totalBudget - totalSpent, 
+                  valueColor: (totalBudget - totalSpent) < 0 ? Colors.red : Colors.green.shade800
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Excess to Wallet', style: TextStyle(color: Theme.of(context).colorScheme.onTertiaryContainer.withOpacity(0.7))),
-                    Text(
-                      '₹${totalWalletSurplus.toStringAsFixed(0)}', 
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold, 
-                        color: Colors.orange.shade800
-                      )
-                    ),
-                  ],
+                _buildSummaryRow(
+                  context, 
+                  'Excess to Wallet', 
+                  totalWalletSurplus, 
+                  valueColor: Colors.orange.shade800
                 ),
                 const SizedBox(height: 12),
                 ClipRRect(
@@ -209,173 +144,196 @@ class CategoryManagerScreen extends StatelessWidget {
             ),
           ),
         ),
-        
+
+        // --- Category List ---
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
             itemCount: sortedKeys.length,
             itemBuilder: (context, index) {
-        final mainCategory = sortedKeys[index];
-        final subItems = grouped[mainCategory]!;
+              final mainCategory = sortedKeys[index];
+              final subItems = grouped[mainCategory]!;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-              child: Row(
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 4, 
-                    height: 16, 
-                    color: Theme.of(context).colorScheme.primary, 
-                    margin: const EdgeInsets.only(right: 8)
-                  ),
-                  Text(
-                    mainCategory.toUpperCase(),
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold, 
-                      fontSize: 14, 
-                      letterSpacing: 1.2, 
-                      color: Theme.of(context).colorScheme.primary
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 4, 
+                          height: 16, 
+                          color: Theme.of(context).colorScheme.primary, 
+                          margin: const EdgeInsets.only(right: 8)
+                        ),
+                        Text(
+                          mainCategory.toUpperCase(),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold, 
+                            fontSize: 14, 
+                            letterSpacing: 1.2, 
+                            color: Theme.of(context).colorScheme.primary
+                          ),
+                        ),
+                        const Spacer(),
+                        Text('${subItems.length} items', style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color, fontSize: 12)),
+                      ],
                     ),
                   ),
-                  const Spacer(),
-                  Text('${subItems.length} items', style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color, fontSize: 12)),
+                  ...subItems.map((cat) => _buildCategoryCard(context, provider, cat)).toList(),
+                ],
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryRow(BuildContext context, String label, double value, {bool isBoldTitle = false, double? fontSize, Color? valueColor}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label, 
+          style: TextStyle(
+            fontWeight: isBoldTitle ? FontWeight.bold : FontWeight.normal,
+            color: Theme.of(context).colorScheme.onTertiaryContainer.withOpacity(isBoldTitle ? 1.0 : 0.7)
+          )
+        ),
+        Text(
+          '₹${value.toStringAsFixed(0)}', 
+          style: TextStyle(
+            fontWeight: FontWeight.bold, 
+            fontSize: fontSize,
+            color: valueColor ?? Theme.of(context).colorScheme.onTertiaryContainer
+          )
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCategoryCard(BuildContext context, AccountingProvider provider, BudgetCategory cat) {
+    final status = provider.getCategoryStatus(cat);
+    final double spent = status['spent']!;
+    final double totalLimit = status['total_limit']!;
+    final double progress = totalLimit > 0 ? (spent / totalLimit).clamp(0.0, 1.0) : 0.0;
+    final bool isOver = spent > totalLimit;
+
+    return Card(
+      elevation: 2,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        onTap: () => _showTransactions(context, cat),
+        onLongPress: () => _showEditDialog(context, cat),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          cat.subCategory,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        if (cat.remarks.isNotEmpty)
+                          Text(
+                            cat.remarks,
+                            style: TextStyle(color: Colors.grey[400], fontSize: 11),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_upward, size: 20, color: Colors.orangeAccent),
+                        tooltip: 'Move Remaining to Wallet',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _showTransferDialog(context, cat, true),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.arrow_downward, size: 20, color: Colors.greenAccent),
+                        tooltip: 'Add Funds from Wallet',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _showTransferDialog(context, cat, false),
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton(
+                        icon: const Icon(Icons.copy, size: 20, color: Colors.lightBlueAccent),
+                        tooltip: 'Duplicate',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _showAddDialog(context, template: cat),
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 20, color: Colors.grey),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _showEditDialog(context, cat),
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton(
+                        icon: const Icon(Icons.delete, size: 20, color: Colors.redAccent),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => _showDeleteConfirm(context, cat),
+                      ),
+                    ],
+                  )
                 ],
               ),
-            ),
-            ...subItems.map((cat) {
-                final status = provider.getCategoryStatus(cat);
-                final double spent = status['spent']!;
-                final double totalLimit = status['total_limit']!;
-                final double progress = totalLimit > 0 ? (spent / totalLimit).clamp(0.0, 1.0) : 0.0;
-                final bool isOver = spent > totalLimit;
-
-                return Card(
-                  elevation: 2,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: InkWell(
-                    onTap: () => _showTransactions(context, cat),
-                    onLongPress: () => _showEditDialog(context, cat),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      cat.subCategory, // Display Sub Category as the main card title now
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                    ),
-                                    if (cat.remarks.isNotEmpty)
-                                      Text(
-                                        cat.remarks,
-                                        style: TextStyle(color: Colors.grey[400], fontSize: 11),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                              Row(
-                                children: [
-                                  // Transfer Buttons
-                                  IconButton(
-                                    icon: const Icon(Icons.arrow_upward, size: 20, color: Colors.orangeAccent),
-                                    tooltip: 'Move Remaining to Wallet',
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    onPressed: () => _showTransferDialog(context, cat, true),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  IconButton(
-                                    icon: const Icon(Icons.arrow_downward, size: 20, color: Colors.greenAccent),
-                                    tooltip: 'Add Funds from Wallet',
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    onPressed: () => _showTransferDialog(context, cat, false),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  // Existing Buttons
-                                  IconButton(
-                                    icon: const Icon(Icons.copy, size: 20, color: Colors.lightBlueAccent),
-                                    tooltip: 'Duplicate',
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    onPressed: () => _showAddDialog(context, template: cat),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  IconButton(
-                                    icon: const Icon(Icons.edit, size: 20, color: Colors.grey),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    onPressed: () => _showEditDialog(context, cat),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  IconButton(
-                                    icon: const Icon(Icons.delete, size: 20, color: Colors.redAccent),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(),
-                                    onPressed: () => _showDeleteConfirm(context, cat),
-                                  ),
-                                ],
-                              )
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(2),
-                                  child: LinearProgressIndicator(
-                                    value: progress,
-                                    backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.grey.shade300,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      isOver ? Colors.redAccent : (progress > 0.8 ? Colors.orangeAccent : Colors.teal),
-                                    ),
-                                    minHeight: 4,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    '₹${spent.toStringAsFixed(0)} / ₹${totalLimit.toStringAsFixed(0)}',
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                  ),
-                                  Text(
-                                    'Pending: ₹${(totalLimit - spent).toStringAsFixed(0)}',
-                                    style: TextStyle(
-                                      fontSize: 11, 
-                                      color: (totalLimit - spent) < 0 ? Colors.redAccent : Colors.green
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        backgroundColor: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.grey.shade300,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          isOver ? Colors.redAccent : (progress > 0.8 ? Colors.orangeAccent : Colors.teal),
+                        ),
+                        minHeight: 4,
                       ),
                     ),
                   ),
-                );
-
-            }).toList(),
-          ],
-        );
-      },
-    ),
-  ),
-],
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '₹${spent.toStringAsFixed(0)} / ₹${totalLimit.toStringAsFixed(0)}',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      Text(
+                        'Pending: ₹${(totalLimit - spent).toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: (totalLimit - spent) < 0 ? Colors.redAccent : Colors.green
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
