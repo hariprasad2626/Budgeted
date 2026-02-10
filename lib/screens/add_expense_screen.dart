@@ -26,7 +26,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   MoneySource _moneySource = MoneySource.WALLET;
   DateTime _selectedDate = DateTime.now();
   BudgetType? _derivedBudgetType;
-  String? _selectedBudgetMonth; // YYYY-MM
 
   @override
   void initState() {
@@ -39,45 +38,19 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       _moneySource = e.moneySource;
       _selectedDate = e.date;
       _derivedBudgetType = e.budgetType;
-      _selectedBudgetMonth = e.budgetMonth;
     } else if (widget.defaultSource != null) {
       _moneySource = widget.defaultSource!;
     }
   }
 
-  // Helper to generate available budget months from active periods
-  List<String> _getAvailableBudgetMonths(AccountingProvider provider) {
-    final Set<String> months = {};
-    for (var period in provider.budgetPeriods.where((p) => p.isActive)) {
-      months.addAll(period.getAllMonths());
-    }
-    // Also include current month and selected date's month if not present
-    months.add(DateFormat('yyyy-MM').format(DateTime.now()));
-    months.add(DateFormat('yyyy-MM').format(_selectedDate));
-    
-    final sorted = months.toList()..sort();
-    return sorted;
-  }
 
-  // Helper to format YYYY-MM to readable string
-  String _formatMonth(String yyyyMM) {
-    try {
-      final date = DateFormat('yyyy-MM').parse(yyyyMM);
-      return DateFormat('MMM yyyy').format(date);
-    } catch (_) {
-      return yyyyMM;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<AccountingProvider>(context);
     final allCats = provider.categories;
     
-    // Default budget month to transaction date if not set
-    if (_selectedBudgetMonth == null) {
-      _selectedBudgetMonth = DateFormat('yyyy-MM').format(_selectedDate);
-    }
+
 
     if (widget.expenseToEdit != null && _selectedCategoryName == null && _selectedCategoryId != null) {
       try {
@@ -127,7 +100,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   }).toList(),
                   onChanged: (val) => setState(() => _moneySource = val!),
                 ),
-              if (_moneySource == MoneySource.ISKCON) ...[
+              if (_moneySource == MoneySource.ISKCON || _moneySource == MoneySource.PERSONAL) ...[
                 const SizedBox(height: 24),
                 Text('CATEGORY', style: _labelStyle),
                 const SizedBox(height: 8),
@@ -192,22 +165,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              // Budget Month Selection
-              DropdownButtonFormField<String>(
-                decoration: _inputDecoration('Budget Month'),
-                value: _getAvailableBudgetMonths(provider).contains(_selectedBudgetMonth) ? _selectedBudgetMonth : null,
-                items: _getAvailableBudgetMonths(provider).map((m) {
-                  return DropdownMenuItem(
-                    value: m,
-                    child: Text(_formatMonth(m)),
-                  );
-                }).toList(),
-                onChanged: (val) {
-                  setState(() => _selectedBudgetMonth = val);
-                },
-                hint: const Text('Select Month'),
               ),
               const SizedBox(height: 16),
               TextFormField(
@@ -307,8 +264,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       if (!_formKey.currentState!.validate()) return; // Trigger visible validators
       return;
     }
-    // Check Category only if source is ISKCON
-    if (_moneySource == MoneySource.ISKCON && _selectedCategoryId == null) {
+    // Check Category only if source is ISKCON OR PERSONAL
+    if ((_moneySource == MoneySource.ISKCON || _moneySource == MoneySource.PERSONAL) && _selectedCategoryId == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select a category')));
       return;
     }
@@ -319,11 +276,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     String finalCatId = '';
     BudgetType finalBudgetType = BudgetType.OTE;
 
-    if (_moneySource == MoneySource.ISKCON) {
+    if (_moneySource == MoneySource.ISKCON || _moneySource == MoneySource.PERSONAL) {
        finalCatId = _selectedCategoryId!;
        finalBudgetType = _derivedBudgetType!;
     } else {
-       // For Wallet/Personal, try to find a 'General' category or just pick the first one as placeholder
+       // For Wallet (ONLY for wallet now, as Personal is handled above), try to find a 'General' category
        final generalCat = provider.categories.firstWhere(
           (c) => c.category.toLowerCase().contains('general') || c.subCategory.toLowerCase().contains('general'),
           orElse: () => provider.categories.isNotEmpty ? provider.categories.first : 
@@ -367,8 +324,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             // return; // STRICT RULE DISABLED: Allow proceeding
          }
        } catch (_) {
-         // Category might not be found or other error, assume allow or block? 
-         // For now, if we can't find category, we probably shouldn't block blindly, but loop code above handles "finding" logic.
        }
     }
 
@@ -381,7 +336,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       moneySource: _moneySource,
       date: _selectedDate,
       remarks: _remarksController.text,
-      budgetMonth: _selectedBudgetMonth,
+      budgetMonth: null,
     );
 
     if (widget.expenseToEdit == null) {
