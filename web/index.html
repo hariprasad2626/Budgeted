@@ -34,6 +34,54 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
 
+  <style>
+    body {
+      background-color: #002d2d;
+      /* Teal dark background */
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+    }
+
+    #loading-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      width: 100vw;
+      color: white;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .loader {
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      border-top: 4px solid #00f2fe;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin-bottom: 20px;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .loading-text {
+      font-size: 18px;
+      font-weight: 300;
+      letter-spacing: 2px;
+      color: #00f2fe;
+      text-transform: uppercase;
+    }
+  </style>
   <title>Accounts</title>
   <link rel="manifest" href="manifest.json">
   <script>
@@ -41,13 +89,11 @@
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(function (registrations) {
         for (let registration of registrations) {
-          // Optional: Unregister to force fresh fetch if stuck
           registration.unregister();
         }
       });
 
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        // This triggers when the new service worker takes over
         window.location.reload();
       });
     }
@@ -55,6 +101,10 @@
 </head>
 
 <body>
+  <div id="loading-container">
+    <div class="loader"></div>
+    <div class="loading-text">Initializing Accounts...</div>
+  </div>
   <script src="flutter_bootstrap.js?v=24" async></script>
 </body>
 
