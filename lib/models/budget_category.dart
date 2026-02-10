@@ -56,7 +56,9 @@ class BudgetCategory {
       targetAmount: (map['targetAmount'] as num?)?.toDouble() ?? 0.0,
       isActive: map['isActive'] ?? true,
       remarks: map['remarks'] ?? '',
-      createdAt: (map['createdAt'] as Timestamp).toDate(),
+      createdAt: map['createdAt'] is Timestamp 
+          ? (map['createdAt'] as Timestamp).toDate() 
+          : (map['createdAt'] is String ? DateTime.parse(map['createdAt']) : DateTime.now()),
     );
   }
 }

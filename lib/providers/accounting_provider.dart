@@ -13,6 +13,7 @@ import '../models/fixed_amount.dart';
 import '../models/budget_period.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/firestore_service.dart';
+import '../services/cache_service.dart';
 
 class AccountingProvider with ChangeNotifier {
   final FirestoreService _service = FirestoreService();
@@ -90,30 +91,87 @@ class AccountingProvider with ChangeNotifier {
   StreamSubscription? _budgetPeriodSub;
 
   AccountingProvider() {
-    _initGlobal();
-    _initCostCenters();
-    loadTheme();
+    _loadCache().then((_) {
+      _initGlobal();
+      _initCostCenters();
+      loadTheme();
+    });
+  }
+
+  Future<void> _loadCache() async {
+    // Load active cost center first
+    _activeCostCenterId = await CacheService.loadValue('activeCostCenterId');
+
+    // Global Data
+    final costCenters = await CacheService.loadList('costCenters', CostCenter.fromMap);
+    if (costCenters != null) _costCenters = costCenters.cast<CostCenter>();
+
+    final transfers = await CacheService.loadList('transfers', FundTransfer.fromMap);
+    if (transfers != null) _transfers = transfers.cast<FundTransfer>();
+
+    final adjustments = await CacheService.loadList('adjustments', PersonalAdjustment.fromMap);
+    if (adjustments != null) _adjustments = adjustments.cast<PersonalAdjustment>();
+
+    final allExpenses = await CacheService.loadList('allExpenses', Expense.fromMap);
+    if (allExpenses != null) _allExpenses = allExpenses.cast<Expense>();
+
+    final fixedAmounts = await CacheService.loadList('fixedAmounts', FixedAmount.fromMap);
+    if (fixedAmounts != null) _fixedAmounts = fixedAmounts.cast<FixedAmount>();
+
+    final realBalanceVal = await CacheService.loadValue('realBalance');
+    if (realBalanceVal != null) _realBalance = double.tryParse(realBalanceVal) ?? 0;
+
+    // Load Center specific data if active ID exists
+    if (_activeCostCenterId != null) {
+      final categories = await CacheService.loadList('categories_$_activeCostCenterId', BudgetCategory.fromMap);
+      if (categories != null) _categories = categories.cast<BudgetCategory>();
+
+      final allocations = await CacheService.loadList('allocations_$_activeCostCenterId', BudgetAllocation.fromMap);
+      if (allocations != null) _allocations = allocations.cast<BudgetAllocation>();
+
+      final donations = await CacheService.loadList('donations_$_activeCostCenterId', Donation.fromMap);
+      if (donations != null) _donations = donations.cast<Donation>();
+
+      final expenses = await CacheService.loadList('expenses_$_activeCostCenterId', Expense.fromMap);
+      if (expenses != null) _expenses = expenses.cast<Expense>();
+
+      final centerAdjustments = await CacheService.loadList('centerAdjustments_$_activeCostCenterId', CostCenterAdjustment.fromMap);
+      if (centerAdjustments != null) _centerAdjustments = centerAdjustments.cast<CostCenterAdjustment>();
+
+      final budgetPeriods = await CacheService.loadList('budgetPeriods_$_activeCostCenterId', BudgetPeriod.fromMap);
+      if (budgetPeriods != null) _budgetPeriods = budgetPeriods.cast<BudgetPeriod>();
+
+      final centerRealValue = await CacheService.loadValue('centerRealBalance_$_activeCostCenterId');
+      if (centerRealValue != null) _costCenterRealBalance = double.tryParse(centerRealValue) ?? 0;
+    }
+
+    notifyListeners();
   }
 
   void _initGlobal() {
     _service.getFundTransfers().listen((data) {
       _transfers = data;
+      CacheService.saveList('transfers', data);
       notifyListeners();
     });
     _service.getPersonalAdjustments().listen((data) {
       _adjustments = data;
+      CacheService.saveList('adjustments', data);
       notifyListeners();
     });
     _service.getExpenses().listen((data) {
       _allExpenses = data;
+      CacheService.saveList('allExpenses', data);
       notifyListeners();
     });
     _fixedSub = _service.getFixedAmounts().listen((data) {
       _fixedAmounts = data;
+      CacheService.saveList('fixedAmounts', data);
       notifyListeners();
     });
     _realSub = _service.getRealBalance().listen((data) {
       _realBalance = data;
+      CacheService.saveValue('realBalance', data);
       notifyListeners();
     });
   }
@@ -121,6 +179,7 @@ class AccountingProvider with ChangeNotifier {
   void _initCostCenters() {
     _service.getCostCenters().listen((data) {
       _costCenters = data;
+      CacheService.saveList('costCenters', data);
       if (_activeCostCenterId == null && _costCenters.isNotEmpty) {
         setActiveCostCenter(_costCenters.first.id);
       }
@@ -130,7 +189,9 @@ class AccountingProvider with ChangeNotifier {
 
   void setActiveCostCenter(String id) {
     _activeCostCenterId = id;
+    CacheService.saveValue('activeCostCenterId', id);
     _subscribeToCenterData(id);
+    _loadCache(); // Quick reload of center specific cached data
     notifyListeners();
   }
 
@@ -163,35 +224,42 @@ class AccountingProvider with ChangeNotifier {
 
     _catSub = _service.getCategories(id).listen((data) {
       _categories = data;
+      CacheService.saveList('categories_$id', data);
       _lastSync = DateTime.now();
       notifyListeners();
     });
     _allocSub = _service.getAllocations(id).listen((data) {
       _allocations = data;
+      CacheService.saveList('allocations_$id', data);
       _lastSync = DateTime.now();
       notifyListeners();
     });
     _donSub = _service.getDonations(id).listen((data) {
       _donations = data;
+      CacheService.saveList('donations_$id', data);
       _lastSync = DateTime.now();
       notifyListeners();
     });
     _expSub = _service.getExpenses(costCenterId: id).listen((data) {
       _expenses = data;
+      CacheService.saveList('expenses_$id', data);
       _lastSync = DateTime.now();
       notifyListeners();
     });
     _adjSub = _service.getCostCenterAdjustments(id).listen((data) {
       _centerAdjustments = data;
+      CacheService.saveList('centerAdjustments_$id', data);
       _lastSync = DateTime.now();
       notifyListeners();
     });
     _centerRealSub = _service.getCostCenterRealBalance(id).listen((data) {
       _costCenterRealBalance = data;
+      CacheService.saveValue('centerRealBalance_$id', data);
       notifyListeners();
     });
     _budgetPeriodSub = _service.getBudgetPeriods(id).listen((data) {
       _budgetPeriods = data;
+      CacheService.saveList('budgetPeriods_$id', data);
       _lastSync = DateTime.now();
       notifyListeners();
     });
@@ -361,7 +429,7 @@ class AccountingProvider with ChangeNotifier {
         .where((d) => d.mode == DonationMode.MERGE_TO_BUDGET && d.budgetCategoryId == cat.id)
         .fold(0.0, (sum, d) => sum + d.amount);
     final spent = _expenses
-        .where((e) => e.categoryId == cat.id)
+        .where((e) => e.categoryId == cat.id && (e.moneySource != MoneySource.PERSONAL || e.isSettled))
         .fold(0.0, (sum, e) => sum + e.amount);
 
     double adjustments = _centerAdjustments

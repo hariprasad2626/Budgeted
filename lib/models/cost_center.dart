@@ -41,7 +41,9 @@ class CostCenter {
       id: id,
       name: map['name'] ?? '',
       isActive: map['isActive'] ?? true,
-      createdAt: (map['createdAt'] as Timestamp).toDate(),
+      createdAt: map['createdAt'] is Timestamp 
+          ? (map['createdAt'] as Timestamp).toDate() 
+          : (map['createdAt'] is String ? DateTime.parse(map['createdAt']) : DateTime.now()),
       remarks: map['remarks'] ?? '',
       defaultPmeAmount: (map['defaultPmeAmount'] as num?)?.toDouble() ?? 0.0,
       defaultOteAmount: (map['defaultOteAmount'] as num?)?.toDouble() ?? 0.0,

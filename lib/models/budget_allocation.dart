@@ -41,7 +41,9 @@ class BudgetAllocation {
       ),
       amount: (map['amount'] as num).toDouble(),
       month: map['month'],
-      date: (map['date'] as Timestamp).toDate(),
+      date: map['date'] is Timestamp 
+          ? (map['date'] as Timestamp).toDate() 
+          : (map['date'] is String ? DateTime.parse(map['date']) : DateTime.now()),
       remarks: map['remarks'] ?? '',
     );
   }

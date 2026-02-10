@@ -150,7 +150,9 @@ class BudgetPeriod {
       monthlyPme: pmeMap,
       monthlyPmeRemarks: remarksMap,
       oteAmount: (map['oteAmount'] as num?)?.toDouble() ?? 0.0,
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: map['createdAt'] is Timestamp 
+          ? (map['createdAt'] as Timestamp).toDate() 
+          : (map['createdAt'] is String ? DateTime.parse(map['createdAt']) : DateTime.now()),
       isActive: map['isActive'] ?? true,
       remarks: map['remarks'] ?? '',
     );

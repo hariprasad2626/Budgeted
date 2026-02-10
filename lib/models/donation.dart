@@ -42,7 +42,9 @@ class Donation {
         orElse: () => DonationMode.WALLET,
       ),
       budgetCategoryId: map['budgetCategoryId'],
-      date: (map['date'] as Timestamp).toDate(),
+      date: map['date'] is Timestamp 
+          ? (map['date'] as Timestamp).toDate() 
+          : (map['date'] is String ? DateTime.parse(map['date']) : DateTime.now()),
       remarks: map['remarks'] ?? '',
     );
   }

@@ -53,7 +53,9 @@ class FundTransfer {
       id: id,
       costCenterId: map['costCenterId'] ?? '',
       amount: (map['amount'] as num).toDouble(),
-      date: (map['date'] as Timestamp).toDate(),
+      date: map['date'] is Timestamp 
+          ? (map['date'] as Timestamp).toDate() 
+          : (map['date'] is String ? DateTime.parse(map['date']) : DateTime.now()),
       remarks: map['remarks'] ?? '',
       type: tType,
       fromCategoryId: map['fromCategoryId'],

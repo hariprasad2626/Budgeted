@@ -56,7 +56,9 @@ class Expense {
         (e) => e.toString().split('.').last == map['moneySource'],
         orElse: () => MoneySource.PERSONAL,
       ),
-      date: (map['date'] as Timestamp).toDate(),
+      date: map['date'] is Timestamp 
+          ? (map['date'] as Timestamp).toDate() 
+          : (map['date'] is String ? DateTime.parse(map['date']) : DateTime.now()),
       remarks: map['remarks'] ?? '',
       isSettled: map['isSettled'] ?? false,
       budgetMonth: map['budgetMonth'],
