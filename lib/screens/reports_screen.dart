@@ -9,6 +9,8 @@ import '../models/donation.dart';
 import 'add_expense_screen.dart';
 import 'transaction_history_screen.dart';
 
+import '../services/firestore_service.dart';
+
 class ReportsScreen extends StatelessWidget {
   const ReportsScreen({super.key});
 

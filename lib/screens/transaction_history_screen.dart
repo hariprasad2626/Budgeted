@@ -113,7 +113,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
               ),
             ),
           Expanded(
-            child: widget.items.isEmpty
+            child: itemsSource.isEmpty
                 ? const Center(child: Text('No entries found.'))
                 : ListView.separated(
                     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -304,7 +304,8 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           ),
         ],
       ),
-      },
     );
+  },
+);
   }
 }
