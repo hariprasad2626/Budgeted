@@ -308,16 +308,10 @@ class AccountingProvider with ChangeNotifier {
           .fold(0.0, (sum, e) => sum + e.amount);
 
       // Logic:
-      // Cash In Hand = Received (Transfers) - Spent (Expenses)
-      // IF Settled > Transfers, it means we were Reimbursed for the excess.
-      // So we Add back (Settled - Transfers).
-      
-      double reimbursement = 0;
-      if (ccSettled > ccTransfers) {
-        reimbursement = ccSettled - ccTransfers;
-      }
-      
-      totalBalance += (ccTransfers - ccExpenses + reimbursement);
+      // Cash Position = Total Received (Transfers) + Reimbursed (Settled) - Total Spent (Expenses)
+      // This ensures that when an expense is settled, the personal balance 'updates' (increases)
+      // because the spent money is returned to the available balance (retiring the advance or reimbursement).
+      totalBalance += (ccTransfers + ccSettled - ccExpenses);
     }
 
     // 2. Add Independent Adjustments (Global for now, or per CC?)
