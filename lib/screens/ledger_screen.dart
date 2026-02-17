@@ -209,29 +209,6 @@ class _LedgerScreenState extends State<LedgerScreen> {
           }
         }
 
-        // Calculate chronological advance coverage for offsets
-        double cumulativeAdvancePool = provider.transfers
-            .where((t) => t.type == TransferType.TO_PERSONAL && t.costCenterId == activeCenter.id)
-            .fold(0.0, (sum, t) => sum + t.amount);
-        
-        // Sort settled expenses by date ascending
-        final settledExpenses = provider.expenses
-            .where((e) => e.moneySource == MoneySource.PERSONAL && e.isSettled)
-            .toList()..sort((a, b) => a.date.compareTo(b.date));
-        
-        final Map<String, double> expenseCoverage = {};
-        double usedPool = 0;
-        for (var e in settledExpenses) {
-          double canCover = cumulativeAdvancePool - usedPool;
-          if (canCover > 0) {
-            double coverage = e.amount > canCover ? canCover : e.amount;
-            expenseCoverage[e.id] = coverage;
-            usedPool += coverage;
-          } else {
-            expenseCoverage[e.id] = 0;
-          }
-        }
-
         // Gather all relevant transactions for this center
         List<Map<String, dynamic>> allEntries = [
           ...budgetEntries,
@@ -461,7 +438,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
                      'categoryPath': 'Manual Adjustment',
                  };
             }),
-            ...provider.expenses.where((e) => e.moneySource == MoneySource.PERSONAL && e.amount != 0 && e.isSettled).expand((e) {
+            ...provider.allExpenses.where((e) => e.costCenterId == activeCenter.id && e.moneySource == MoneySource.PERSONAL && e.amount != 0 && e.isSettled).map((e) {
                  String catName = 'Global/Wallet';
                  String bType = 'WALLET';
                  try {
@@ -470,37 +447,20 @@ class _LedgerScreenState extends State<LedgerScreen> {
                    bType = cat.budgetType.toString().split('.').last;
                  } catch (_) {}
 
-                 final coverage = expenseCoverage[e.id] ?? 0.0;
-
-                 return [
-                   {
-                     'type': 'Expense',
-                     'source': 'Personal (Settled)',
-                     'amount': -e.amount, 
-                     'date': e.date,
-                     'title': '${e.remarks} (Personal)',
-                     'color': Colors.redAccent,
-                     'item': e,
-                     'budgetType': bType,
-                     'status': 'Spent',
-                     'statusColor': Colors.redAccent,
-                     'categoryPath': catName,
-                   },
-                   if (coverage > 0)
-                    {
-                      'type': 'Settlement',
-                      'source': 'Wallet Offset',
-                      'amount': coverage, 
-                      'date': e.date,
-                      'title': 'Advance Offset: ${e.remarks}',
-                      'color': Colors.tealAccent,
-                      'item': e,
-                      'budgetType': 'WALLET', 
-                      'status': 'Offset',
-                      'statusColor': Colors.tealAccent,
-                      'categoryPath': 'Portion covered by Advance',
-                    }
-                 ];
+                 return {
+                   'type': 'Expense',
+                   'source': 'Personal (Settled)',
+                   'amount': -e.amount, 
+                   'date': e.date,
+                   'title': '${e.remarks} (${e.settledAgainstAdvance ? "Against Adv" : "Reimbursed"})',
+                   'color': Colors.redAccent,
+                   'item': e,
+                   'budgetType': bType,
+                   'status': 'Spent',
+                   'statusColor': Colors.redAccent,
+                   'categoryPath': catName,
+                   'settledAgainstAdvance': e.settledAgainstAdvance, 
+                 };
             }),
         ];
 
@@ -511,29 +471,31 @@ class _LedgerScreenState extends State<LedgerScreen> {
         if (filterMode == 'OTE') {
           displayBalance = provider.oteBalance;
           headerTitle = 'OTE Balance';
-          // OTE ledger should ONLY show OTE items. 
           allEntries = allEntries.where((e) => e['budgetType'] == 'OTE').toList();
         } else if (filterMode == 'PME') {
           displayBalance = provider.pmeBalance;
           headerTitle = 'PME Balance';
-          // PME ledger should show PME items AND Transfers (Advances) if they were from PME
           allEntries = allEntries.where((e) => e['budgetType'] == 'PME' || (e['type'] == 'Transfer' && e['budgetType'] == 'PME')).toList();
         } else if (filterMode == 'WALLET') {
           displayBalance = provider.walletBalance;
           headerTitle = 'Wallet Balance';
-          // Wallet ledger shows everything tagged as WALLET
           allEntries = allEntries.where((e) => e['budgetType'] == 'WALLET').toList();
         } else if (filterMode == 'ADVANCE') {
           displayBalance = provider.advanceUnsettled;
           headerTitle = 'Advance Unsettled';
-          // The ADVANCE view shows the original advances (Transfer) and the repayments (Settlement)
-          allEntries = allEntries.where((e) => e['type'] == 'Transfer' || e['type'] == 'Settlement').toList();
+          // ADVANCE view shows gross transitions + categorization of those advances
+          allEntries = allEntries.where((e) => e['type'] == 'Transfer' || (e['type'] == 'Expense' && e['settledAgainstAdvance'] == true)).toList();
         } else {
-           // ALL_CENTER (Total Health)
+           // ALL_CENTER (Total Bank Cash Health)
            displayBalance = provider.costCenterBudgetBalance;
            headerTitle = 'Total CC Balance';
-           // ALL_CENTER shows everything that affects REAL CASH in the bank.
-           allEntries = allEntries.where((e) => e['type'] != 'Wallet usage' && e['type'] != 'Wallet deposit' && e['type'] != 'Budget Move').toList();
+           // ALL_CENTER shows everything that is a REAL BANK HIT.
+           // Settled personal expenses ONLY hit the bank if NOT against an advance (Reimbursements).
+           allEntries = allEntries.where((e) {
+             if (e['type'] == 'Wallet usage' || e['type'] == 'Wallet deposit' || e['type'] == 'Budget Move') return false;
+             if (e['type'] == 'Expense' && e['source'] == 'Personal (Settled)' && e['settledAgainstAdvance'] == true) return false;
+             return true;
+           }).toList();
         }
 
         // Apply Search and Date Filters

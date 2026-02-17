@@ -18,7 +18,6 @@ import '../services/cache_service.dart';
 class AccountingProvider with ChangeNotifier {
   final FirestoreService _service = FirestoreService();
 
-
   String? _activeCostCenterId;
   List<CostCenter> _costCenters = [];
 
@@ -99,10 +98,8 @@ class AccountingProvider with ChangeNotifier {
   }
 
   Future<void> _loadCache() async {
-    // Load active cost center first
     _activeCostCenterId = await CacheService.loadValue('activeCostCenterId');
 
-    // Global Data
     final costCenters = await CacheService.loadList('costCenters', CostCenter.fromMap);
     if (costCenters != null) _costCenters = costCenters.cast<CostCenter>();
 
@@ -121,7 +118,6 @@ class AccountingProvider with ChangeNotifier {
     final realBalanceVal = await CacheService.loadValue('realBalance');
     if (realBalanceVal != null) _realBalance = double.tryParse(realBalanceVal) ?? 0;
 
-    // Load Center specific data if active ID exists
     if (_activeCostCenterId != null) {
       final categories = await CacheService.loadList('categories_$_activeCostCenterId', BudgetCategory.fromMap);
       if (categories != null) _categories = categories.cast<BudgetCategory>();
@@ -132,9 +128,6 @@ class AccountingProvider with ChangeNotifier {
       final donations = await CacheService.loadList('donations_$_activeCostCenterId', Donation.fromMap);
       if (donations != null) _donations = donations.cast<Donation>();
 
-      final expenses = await CacheService.loadList('expenses_$_activeCostCenterId', Expense.fromMap);
-      if (expenses != null) _expenses = expenses.cast<Expense>();
-
       final centerAdjustments = await CacheService.loadList('centerAdjustments_$_activeCostCenterId', CostCenterAdjustment.fromMap);
       if (centerAdjustments != null) _centerAdjustments = centerAdjustments.cast<CostCenterAdjustment>();
 
@@ -143,6 +136,8 @@ class AccountingProvider with ChangeNotifier {
 
       final centerRealValue = await CacheService.loadValue('centerRealBalance_$_activeCostCenterId');
       if (centerRealValue != null) _costCenterRealBalance = double.tryParse(centerRealValue) ?? 0;
+      
+      _expenses = _allExpenses.where((e) => e.costCenterId == _activeCostCenterId).toList();
     }
 
     notifyListeners();
@@ -160,17 +155,13 @@ class AccountingProvider with ChangeNotifier {
       notifyListeners();
     });
     
-    // Unified Expense Listener
-    _expSub?.cancel(); // Reuse the same variable for the global listener if needed, but let's just use it once
+    _expSub?.cancel();
     _expSub = _service.getExpenses().listen((data) {
       _allExpenses = data;
       CacheService.saveList('allExpenses', data);
-      
-      // Update local expenses if cost center is active
       if (_activeCostCenterId != null) {
         _expenses = _allExpenses.where((e) => e.costCenterId == _activeCostCenterId).toList();
       }
-      
       notifyListeners();
     });
 
@@ -201,13 +192,10 @@ class AccountingProvider with ChangeNotifier {
     _activeCostCenterId = id;
     CacheService.saveValue('activeCostCenterId', id);
     _subscribeToCenterData(id);
-    
-    // Refresh local expenses from the already loaded allExpenses
     if (_allExpenses.isNotEmpty) {
       _expenses = _allExpenses.where((e) => e.costCenterId == id).toList();
     }
-    
-    _loadCache(); // Quick reload of center specific cached data
+    _loadCache();
     notifyListeners();
   }
 
@@ -215,15 +203,11 @@ class AccountingProvider with ChangeNotifier {
     _isSyncing = true;
     _lastSync = DateTime.now();
     notifyListeners();
-
-    // Re-initialize everything
     _initGlobal();
     _initCostCenters();
     if (_activeCostCenterId != null) {
       _subscribeToCenterData(_activeCostCenterId!);
     }
-
-    // Give it a moment to feel like a real refresh
     await Future.delayed(const Duration(seconds: 2));
     _isSyncing = false;
     notifyListeners();
@@ -233,7 +217,6 @@ class AccountingProvider with ChangeNotifier {
     _catSub?.cancel();
     _allocSub?.cancel();
     _donSub?.cancel();
-    // _expSub is now global and handled in _initGlobal
     _adjSub?.cancel();
     _centerRealSub?.cancel();
     _budgetPeriodSub?.cancel();
@@ -256,7 +239,6 @@ class AccountingProvider with ChangeNotifier {
       _lastSync = DateTime.now();
       notifyListeners();
     });
-    // Local expense filtering is now reactive to _allExpenses updates
     _adjSub = _service.getCostCenterAdjustments(id).listen((data) {
       _centerAdjustments = data;
       CacheService.saveList('centerAdjustments_$id', data);
@@ -278,18 +260,8 @@ class AccountingProvider with ChangeNotifier {
 
   // --- Balance Calculations ---
 
-  // --- Balance Calculations ---
-
   double get personalBalance {
-    // We calculate the balance per Cost Center to handle reimbursements correctly.
-    // If Cost Center A has Advance 1000 and Expense 200 (Settled) -> No Reimbursement. Balance 800.
-    // If Cost Center B has Advance 0 and Expense 200 (Settled) -> Reimbursement 200. Balance 0.
-    
     double totalBalance = 0;
-    
-    // 1. Group Data by Cost Center
-    // We need to handle all centers, not just the active one or the loaded list.
-    // We derive the set of relevant IDs from the transactions themselves to be safe.
     final Set<String> ccIds = {};
     ccIds.addAll(_transfers.where((t) => t.type == TransferType.TO_PERSONAL).map((t) => t.costCenterId));
     ccIds.addAll(_allExpenses.where((e) => e.moneySource == MoneySource.PERSONAL).map((e) => e.costCenterId));
@@ -307,24 +279,15 @@ class AccountingProvider with ChangeNotifier {
           .where((e) => e.costCenterId == ccId && e.moneySource == MoneySource.PERSONAL && e.isSettled)
           .fold(0.0, (sum, e) => sum + e.amount);
 
-      // Logic:
-      // Cash Position = Total Received (Transfers) + Reimbursed (Settled) - Total Spent (Expenses)
-      // This ensures that when an expense is settled, the personal balance 'updates' (increases)
-      // because the spent money is returned to the available balance (retiring the advance or reimbursement).
       totalBalance += (ccTransfers + ccSettled - ccExpenses);
     }
 
-    // 2. Add Independent Adjustments (Global for now, or per CC?)
-    // The current model has `PersonalAdjustment` which seems global / independent of CC in the calculation
     double debits = _adjustments.where((a) => a.type == AdjustmentType.DEBIT).fold(0, (sum, a) => sum + a.amount);
     double credits = _adjustments.where((a) => a.type == AdjustmentType.CREDIT).fold(0, (sum, a) => sum + a.amount);
-    
     double fixedTotal = _fixedAmounts.fold(0, (sum, item) => sum + item.amount);
 
     return totalBalance - debits + credits + fixedTotal;
   }
-
-  // --- Cost Center Balance Calculations (OTE/PME) ---
 
   double _getAdjustmentTotal(BudgetType type) {
     double debits = _centerAdjustments
@@ -335,21 +298,6 @@ class AccountingProvider with ChangeNotifier {
         .fold(0, (sum, a) => sum + a.amount);
     return credits - debits;
   }
-
-  // --- Budget Remaining Calculations (Limit - Spent) ---
-
-  /// Get PME allocated for a specific month across all budget periods
-  double getPmeForMonth(String month) {
-    double total = 0;
-    for (var period in _budgetPeriods.where((p) => p.isActive)) {
-      if (period.includesMonth(month)) {
-        total += period.getPmeForMonth(month);
-      }
-    }
-    return total;
-  }
-
-
 
   double get pmeBalance {
     return _categories
@@ -363,121 +311,62 @@ class AccountingProvider with ChangeNotifier {
         .fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['remaining']!);
   }
 
-  // --- Flow: Real Money at ISKCON ---
-  
-  /// "Advance Unsettled" -> Shows how much amount removed (Advanced) from THIS Cost Center but unsettled.
-  /// Calculation: (Total Advances taken from this Center) - (Total Personal Expenses for this Center)
-  /// CLAMPED TO ZERO: If Settled Expenses > Advances, it implies Reimbursement (Cash Out), 
-  /// so "Outstanding Advance" is 0.
-  double get advanceUnsettled {
-    final center = activeCostCenter;
-    if (center == null) return 0;
-
-    // 1. Total Advances taken from THIS center (TO_PERSONAL type only)
-    double totalAdvancesFromCenter = _transfers
-        .where((t) => t.costCenterId == center.id && t.type == TransferType.TO_PERSONAL)
-        .fold<double>(0.0, (sum, t) => sum + t.amount);
-
-    // 2. Personal Expenses made for THIS center AND Settled
-    double settledAmount = _expenses
-        .where((e) => e.moneySource == MoneySource.PERSONAL && e.isSettled)
-        .fold<double>(0.0, (sum, e) => sum + e.amount);
-    
-    double net = totalAdvancesFromCenter - settledAmount;
-    return net < 0 ? 0 : net;
-  }
-
-  // REMOVED totalIskconBalance as requested
-
-  int _getMonthsCount(CostCenter center) {
-    try {
-      DateTime startDate = DateFormat('yyyy-MM').parse(center.pmeStartMonth);
-      DateTime now = DateTime.now();
-      int count = (now.year - startDate.year) * 12 + (now.month - startDate.month) + 1;
-      return count < 1 ? 1 : count;
-    } catch (_) {
-      return 1;
-    }
-  }
-
-  /// Total Budget Remaining in the Cost Center (Temple Allocation + All Donations - Total Spent)
   double get costCenterBudgetBalance {
     final center = activeCostCenter;
     if (center == null) return 0;
 
-    // 1. Total Baseline Allocation from Temple
-    double totalPmeBaseline = 0;
+    double totalBaseline = 0;
     for (var period in _budgetPeriods.where((p) => p.isActive)) {
       for (var month in period.getAllMonths()) {
         if (isMonthInPastOrCurrent(month)) {
-          totalPmeBaseline += period.defaultPmeAmount;
+          totalBaseline += period.getPmeForMonth(month);
         }
       }
+      totalBaseline += period.oteAmount;
     }
-    double totalOteBaseline = _getTotalOteFromPeriods(); // Assuming period OTE is the baseline
 
-    // 2. Total Donations (Earmarked + Wallet)
     double totalDonations = _donations.fold(0.0, (sum, d) => sum + d.amount);
 
-    // 3. Total Expenses (Non-personal + Settled Personal)
+    // Total Expenses (Non-personal + Reimbursements)
     double totalExpenses = _expenses
-        .where((e) => e.moneySource != MoneySource.PERSONAL || e.isSettled)
+        .where((e) => e.moneySource != MoneySource.PERSONAL || (e.isSettled && !e.settledAgainstAdvance))
         .fold(0.0, (sum, e) => sum + e.amount);
 
-    // 4. Adjustments
     double adjustments = _getAdjustmentTotal(BudgetType.PME) + _getAdjustmentTotal(BudgetType.OTE);
 
-    // 5. Advances (Money out but not spent yet)
-    double advances = advanceUnsettled;
+    double totalAdvancesFromCenter = _transfers
+        .where((t) => t.costCenterId == center.id && t.type == TransferType.TO_PERSONAL)
+        .fold<double>(0.0, (sum, t) => sum + t.amount);
 
-    return totalPmeBaseline + totalOteBaseline + totalDonations - totalExpenses + adjustments - advances;
+    return totalBaseline + totalDonations - totalExpenses + adjustments - totalAdvancesFromCenter;
   }
 
-  /// The current "Temple" Baseline (Sum of all active period defaults/overrides)
-  double get totalPmeBaseline => _getTotalPmeFromPeriods();
+  double get advanceUnsettled {
+    final center = activeCostCenter;
+    if (center == null) return 0;
 
-  /// The current period's total OTE baseline
-  double get totalOteBaseline => _getTotalOteFromPeriods();
+    double totalAdvances = _transfers
+        .where((t) => t.costCenterId == center.id && t.type == TransferType.TO_PERSONAL)
+        .fold<double>(0.0, (sum, t) => sum + t.amount);
 
-  /// Wallet / Unallocated Balance (The "Petty Cash" or "General Fund")
-  /// Formula: Total Cost Center Balance - Sum(Category Balances)
+    double settledAgainstAdvance = _expenses
+        .where((e) => e.moneySource == MoneySource.PERSONAL && e.isSettled && e.settledAgainstAdvance)
+        .fold<double>(0.0, (sum, e) => sum + e.amount);
+    
+    double net = totalAdvances - settledAgainstAdvance;
+    return net < 0 ? 0 : net;
+  }
+
   double get walletBalance {
-    return costCenterBudgetBalance - pmeBalance - oteBalance;
-  }
-
-  /// Unallocated PME Budget (Temple PME Allotment - Total Allocated to PME Categories)
-  double get unallocatedPmeBudget {
     final center = activeCostCenter;
     if (center == null) return 0;
-    
-    double totalPmeBaseline = _getTotalPmeFromPeriods();
-    double totalAllocated = _categories
-        .where((c) => c.budgetType == BudgetType.PME)
-        .fold(0.0, (sum, cat) => sum + (getCategoryStatus(cat)['budget'] ?? 0));
-    
-    return totalPmeBaseline - totalAllocated;
-  }
-
-  /// Unallocated OTE Budget (Temple OTE Allotment - Total Allocated to OTE Categories)
-  double get unallocatedOteBudget {
-    final center = activeCostCenter;
-    if (center == null) return 0;
-    
-    double totalOteBaseline = _getTotalOteFromPeriods();
-    double totalAllocated = _categories
-        .where((c) => c.budgetType == BudgetType.OTE)
-        .fold(0.0, (sum, cat) => sum + (getCategoryStatus(cat)['budget'] ?? 0));
-    
-    return totalOteBaseline - totalAllocated;
+    double catBalances = _categories.fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['remaining']!);
+    return costCenterBudgetBalance - catBalances;
   }
 
   Map<String, double> getCategoryStatus(BudgetCategory cat) {
-    final center = activeCostCenter;
     double budget = cat.targetAmount;
-    
     if (cat.budgetType == BudgetType.PME) {
-      // Calculate budget for this category based on how many months have elapsed in active periods
-      int monthsCount = 0;
       final Set<String> elapsedMonths = {};
       for (var period in _budgetPeriods.where((p) => p.isActive)) {
         for (var month in period.getAllMonths()) {
@@ -486,13 +375,13 @@ class AccountingProvider with ChangeNotifier {
           }
         }
       }
-      monthsCount = elapsedMonths.length;
-      budget = budget * monthsCount;
+      budget = budget * elapsedMonths.length;
     }
 
     final donations = _donations
         .where((d) => d.mode == DonationMode.MERGE_TO_BUDGET && d.budgetCategoryId == cat.id)
         .fold(0.0, (sum, d) => sum + d.amount);
+    
     final spent = _expenses
         .where((e) => e.categoryId == cat.id && (e.moneySource != MoneySource.PERSONAL || e.isSettled))
         .fold(0.0, (sum, e) => sum + e.amount);
@@ -520,38 +409,12 @@ class AccountingProvider with ChangeNotifier {
     };
   }
 
-  BudgetType getBudgetTypeForCategory(String categoryId) {
-    return _categories.firstWhere((c) => c.id == categoryId).budgetType;
-  }
-
-  double _getTotalPmeFromPeriods() {
-    double total = 0;
-    for (var period in _budgetPeriods) {
-      if (period.isActive) {
-        for (var month in period.getAllMonths()) {
-          if (isMonthInPastOrCurrent(month)) {
-            total += period.getPmeForMonth(month);
-          }
-        }
-      }
-    }
-    return total;
-  }
-
-  double _getTotalOteFromPeriods() {
-    return _budgetPeriods
-        .where((p) => p.isActive)
-        .fold(0.0, (sum, p) => sum + p.oteAmount);
-  }
-
   bool isMonthInPastOrCurrent(String month) {
     try {
       final now = DateTime.now();
       final currentMonthVal = now.year * 100 + now.month;
-      
       final parts = month.split('-');
       final monthVal = int.parse(parts[0]) * 100 + int.parse(parts[1]);
-      
       return monthVal <= currentMonthVal;
     } catch (_) {
       return false;
@@ -564,6 +427,7 @@ class AccountingProvider with ChangeNotifier {
     _allocSub?.cancel();
     _donSub?.cancel();
     _expSub?.cancel();
+    _adjSub?.cancel();
     _fixedSub?.cancel();
     _realSub?.cancel();
     _centerRealSub?.cancel();
@@ -580,71 +444,45 @@ class AccountingProvider with ChangeNotifier {
       await _service.updateCostCenterRealBalance(_activeCostCenterId!, amount);
     }
   }
-  // --- Category <-> Wallet Transfers ---
+
   Future<void> transferBetweenCategoryAndWallet({
     required String categoryId,
     required double amount,
-    required bool isToWallet, // true = Category to Wallet, false = Wallet to Category
+    required bool isToWallet,
     required String remarks,
   }) async {
     if (_activeCostCenterId == null) return;
-
-    // We represent these transfers using the existing FundTransfer model.
-    // However, the model needs to distinguish between "Category -> Unallocated (Wallet)" and "Unallocated (Wallet) -> Category".
-    // Convention:
-    // - From Category To Wallet: fromCategoryId = ID, toCategoryId = NULL
-    // - From Wallet To Category: fromCategoryId = NULL, toCategoryId = ID
-    
     final transfer = FundTransfer(
-      id: '', // Service generates ID
+      id: '',
       costCenterId: _activeCostCenterId!,
       amount: amount,
       date: DateTime.now(),
       remarks: remarks,
       type: TransferType.CATEGORY_TO_CATEGORY,
-      fromCategoryId: isToWallet ? categoryId : null, // If to wallet, FROM is cat
-      toCategoryId: isToWallet ? null : categoryId,    // If from wallet, TO is cat
+      fromCategoryId: isToWallet ? categoryId : null,
+      toCategoryId: isToWallet ? null : categoryId,
     );
-
     await _service.addFundTransfer(transfer);
   }
 
   Map<String, Map<String, double>> getMonthlyPerformanceMetrics() {
-    // Map<YYYY-MM, {pme_budget, ote_budget, pme_actual, ote_actual}>
     final Map<String, Map<String, double>> metrics = {};
-
-    // 1. Populate Budget Data from Active Periods
     for (var period in _budgetPeriods.where((p) => p.isActive)) {
       for (var month in period.getAllMonths()) {
         metrics.putIfAbsent(month, () => {'pme_budget': 0.0, 'ote_budget': 0.0, 'pme_actual': 0.0, 'ote_actual': 0.0});
-        
-        // PME is monthly
         metrics[month]!['pme_budget'] = (metrics[month]!['pme_budget'] ?? 0) + period.getPmeForMonth(month);
-        
-        // OTE is total per period, so we don't necessarily split it by month for "Budget".
-        // However, user might want to see it distributed? 
-        // For now, let's just track Actual OTE usage per month.
-        // OTE Budget is a pool, not monthly. We can show Period total separately or divided?
-        // Let's leave OTE Budget as 0 per month for now, as it's a "Project" budget.
       }
     }
-
-    // 2. Populate Expense Data
-    // We rely on expense.budgetMonth which we just added. 
-    // If null, we fall back to expense.date
     for (var expense in _expenses) {
       if (expense.moneySource == MoneySource.PERSONAL && !expense.isSettled) continue;
-
       String month = expense.budgetMonth ?? DateFormat('yyyy-MM').format(expense.date);
       metrics.putIfAbsent(month, () => {'pme_budget': 0.0, 'ote_budget': 0.0, 'pme_actual': 0.0, 'ote_actual': 0.0});
-
       if (expense.budgetType == BudgetType.PME) {
         metrics[month]!['pme_actual'] = (metrics[month]!['pme_actual'] ?? 0) + expense.amount;
       } else {
         metrics[month]!['ote_actual'] = (metrics[month]!['ote_actual'] ?? 0) + expense.amount;
       }
     }
-
     return metrics;
   }
 }

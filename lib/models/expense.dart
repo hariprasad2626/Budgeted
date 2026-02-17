@@ -14,6 +14,7 @@ class Expense {
   final String? budgetMonth; // YYYY-MM
   final String remarks;
   final bool isSettled;
+  final bool settledAgainstAdvance;
 
   Expense({
     required this.id,
@@ -25,6 +26,7 @@ class Expense {
     required this.date,
     required this.remarks,
     this.isSettled = false,
+    this.settledAgainstAdvance = false,
     this.budgetMonth,
   });
 
@@ -38,6 +40,7 @@ class Expense {
       'date': Timestamp.fromDate(date),
       'remarks': remarks,
       'isSettled': isSettled,
+      'settledAgainstAdvance': settledAgainstAdvance,
       'budgetMonth': budgetMonth,
     };
   }
@@ -61,6 +64,7 @@ class Expense {
           : (map['date'] is String ? DateTime.parse(map['date']) : DateTime.now()),
       remarks: map['remarks'] ?? '',
       isSettled: map['isSettled'] ?? false,
+      settledAgainstAdvance: map['settledAgainstAdvance'] ?? false,
       budgetMonth: map['budgetMonth'],
     );
   }

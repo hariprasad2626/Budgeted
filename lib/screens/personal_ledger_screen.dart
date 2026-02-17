@@ -76,6 +76,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
     String? selectedCategoryId;
     String? selectedCostCenterId;
     bool useExisting = false;
+    bool againstAdvance = true; // Default to against advance as suggested by user flow
 
     await showDialog(
       context: context,
@@ -88,11 +89,62 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Classify these entries for the Cost Center Ledger:'),
+                  const Text('Settlement Method:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.tealAccent)),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.black12,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => setDialogState(() => againstAdvance = true),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: againstAdvance ? Colors.teal.shade800 : null,
+                                borderRadius: BorderRadius.circular(8),
+                                border: againstAdvance ? Border.all(color: Colors.tealAccent) : null,
+                              ),
+                              child: Center(child: Text('Against Advance', style: TextStyle(color: againstAdvance ? Colors.white : Colors.grey, fontWeight: againstAdvance ? FontWeight.bold : FontWeight.normal))),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => setDialogState(() => againstAdvance = false),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: !againstAdvance ? Colors.blue.shade800 : null,
+                                borderRadius: BorderRadius.circular(8),
+                                border: !againstAdvance ? Border.all(color: Colors.blueAccent) : null,
+                              ),
+                              child: Center(child: Text('Reimbursement', style: TextStyle(color: !againstAdvance ? Colors.white : Colors.grey, fontWeight: !againstAdvance ? FontWeight.bold : FontWeight.normal))),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    againstAdvance 
+                      ? '• No bank reduction (uses existing advance).' 
+                      : '• Reduces bank balance (new cash outflow).',
+                    style: TextStyle(fontSize: 11, color: againstAdvance ? Colors.tealAccent.withOpacity(0.7) : Colors.blueAccent.withOpacity(0.7)),
+                  ),
                   const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  const Text('Classify Entries:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
                   CheckboxListTile(
-                    title: const Text('Settle as recorded (Keep existing categories)'),
+                    title: const Text('Keep existing categories', style: TextStyle(fontSize: 14)),
                     value: useExisting, 
                     onChanged: (val) {
                       setDialogState(() {
@@ -107,11 +159,10 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
                     contentPadding: EdgeInsets.zero,
                   ),
                   if (!useExisting) ...[
-                    const Divider(),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
                       isExpanded: true,
-                      decoration: const InputDecoration(labelText: 'Select Cost Center'),
+                      decoration: const InputDecoration(labelText: 'Select Cost Center', border: OutlineInputBorder()),
                       value: selectedCostCenterId,
                       items: costCenters.map((cc) => DropdownMenuItem(value: cc.id, child: Text(cc.name))).toList(),
                       onChanged: (val) {
@@ -125,7 +176,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(
                         isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Select Category'),
+                        decoration: const InputDecoration(labelText: 'Select Category', border: OutlineInputBorder()),
                         value: selectedCategoryId,
                         items: filteredCats.map((c) => DropdownMenuItem(value: c.id, child: Text('${c.category} > ${c.subCategory}'))).toList(),
                         onChanged: (val) {
@@ -166,6 +217,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
                         date: expense.date,
                         remarks: expense.remarks,
                         isSettled: true,
+                        settledAgainstAdvance: againstAdvance,
                       );
                       await service.updateExpense(updated);
                       count++;
