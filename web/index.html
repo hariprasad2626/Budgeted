@@ -85,18 +85,8 @@
   <title>Accounts</title>
   <link rel="manifest" href="manifest.json">
   <script>
-    // Force cleanup of old caches on load if needed
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function (registrations) {
-        for (let registration of registrations) {
-          registration.unregister();
-        }
-      });
-
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        window.location.reload();
-      });
-    }
+    // Only unregister if explicitly needed or handle updates via UpdateService
+    // Removed unconditional unregister loop to prevent reload cycles.
   </script>
 </head>
 
@@ -105,7 +95,7 @@
     <div class="loader"></div>
     <div class="loading-text">Initializing Accounts...</div>
   </div>
-  <script src="flutter_bootstrap.js?v=24" async></script>
+  <script src="flutter_bootstrap.js?v=26" async></script>
 </body>
 
 </html>

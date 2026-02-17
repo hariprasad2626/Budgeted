@@ -281,28 +281,53 @@ class AccountingProvider with ChangeNotifier {
   // --- Balance Calculations ---
 
   double get personalBalance {
-    // Total money received from generic ISKCON transfers
-    double totalTransfers = _transfers
-        .where((t) => t.type == TransferType.TO_PERSONAL)
-        .fold(0, (sum, item) => sum + item.amount);
+    // We calculate the balance per Cost Center to handle reimbursements correctly.
+    // If Cost Center A has Advance 1000 and Expense 200 (Settled) -> No Reimbursement. Balance 800.
+    // If Cost Center B has Advance 0 and Expense 200 (Settled) -> Reimbursement 200. Balance 0.
     
-    // Expenses paid specifically from Personal Account
-    double personalExpenses = _allExpenses
-        .where((e) => e.moneySource == MoneySource.PERSONAL)
-        .fold(0, (sum, item) => sum + item.amount);
+    double totalBalance = 0;
+    
+    // 1. Group Data by Cost Center
+    // We need to handle all centers, not just the active one or the loaded list.
+    // We derive the set of relevant IDs from the transactions themselves to be safe.
+    final Set<String> ccIds = {};
+    ccIds.addAll(_transfers.where((t) => t.type == TransferType.TO_PERSONAL).map((t) => t.costCenterId));
+    ccIds.addAll(_allExpenses.where((e) => e.moneySource == MoneySource.PERSONAL).map((e) => e.costCenterId));
+    
+    for (String ccId in ccIds) {
+      double ccTransfers = _transfers
+          .where((t) => t.costCenterId == ccId && t.type == TransferType.TO_PERSONAL)
+          .fold(0.0, (sum, t) => sum + t.amount);
+      
+      double ccExpenses = _allExpenses
+          .where((e) => e.costCenterId == ccId && e.moneySource == MoneySource.PERSONAL)
+          .fold(0.0, (sum, e) => sum + e.amount);
 
-    // Manual adjustments (Balance additions/removals)
-    double debits = _adjustments
-        .where((a) => a.type == AdjustmentType.DEBIT)
-        .fold(0, (sum, item) => sum + item.amount);
-    double credits = _adjustments
-        .where((a) => a.type == AdjustmentType.CREDIT)
-        .fold(0, (sum, item) => sum + item.amount);
+      double ccSettled = _allExpenses
+          .where((e) => e.costCenterId == ccId && e.moneySource == MoneySource.PERSONAL && e.isSettled)
+          .fold(0.0, (sum, e) => sum + e.amount);
 
-    // Fixed Amounts (Stored Balances)
+      // Logic:
+      // Cash In Hand = Received (Transfers) - Spent (Expenses)
+      // IF Settled > Transfers, it means we were Reimbursed for the excess.
+      // So we Add back (Settled - Transfers).
+      
+      double reimbursement = 0;
+      if (ccSettled > ccTransfers) {
+        reimbursement = ccSettled - ccTransfers;
+      }
+      
+      totalBalance += (ccTransfers - ccExpenses + reimbursement);
+    }
+
+    // 2. Add Independent Adjustments (Global for now, or per CC?)
+    // The current model has `PersonalAdjustment` which seems global / independent of CC in the calculation
+    double debits = _adjustments.where((a) => a.type == AdjustmentType.DEBIT).fold(0, (sum, a) => sum + a.amount);
+    double credits = _adjustments.where((a) => a.type == AdjustmentType.CREDIT).fold(0, (sum, a) => sum + a.amount);
+    
     double fixedTotal = _fixedAmounts.fold(0, (sum, item) => sum + item.amount);
 
-    return totalTransfers - personalExpenses - debits + credits + fixedTotal;
+    return totalBalance - debits + credits + fixedTotal;
   }
 
   // --- Cost Center Balance Calculations (OTE/PME) ---
@@ -348,6 +373,8 @@ class AccountingProvider with ChangeNotifier {
   
   /// "Advance Unsettled" -> Shows how much amount removed (Advanced) from THIS Cost Center but unsettled.
   /// Calculation: (Total Advances taken from this Center) - (Total Personal Expenses for this Center)
+  /// CLAMPED TO ZERO: If Settled Expenses > Advances, it implies Reimbursement (Cash Out), 
+  /// so "Outstanding Advance" is 0.
   double get advanceUnsettled {
     final center = activeCostCenter;
     if (center == null) return 0;
@@ -361,8 +388,9 @@ class AccountingProvider with ChangeNotifier {
     double settledAmount = _expenses
         .where((e) => e.moneySource == MoneySource.PERSONAL && e.isSettled)
         .fold<double>(0.0, (sum, e) => sum + e.amount);
-
-    return totalAdvancesFromCenter - settledAmount;
+    
+    double net = totalAdvancesFromCenter - settledAmount;
+    return net < 0 ? 0 : net;
   }
 
   // REMOVED totalIskconBalance as requested
@@ -411,10 +439,42 @@ class AccountingProvider with ChangeNotifier {
     return totalPmeBaseline + totalOteBaseline + totalDonations - totalExpenses + adjustments - advances;
   }
 
+  /// The current "Temple" Baseline (Sum of all active period defaults/overrides)
+  double get totalPmeBaseline => _getTotalPmeFromPeriods();
+
+  /// The current period's total OTE baseline
+  double get totalOteBaseline => _getTotalOteFromPeriods();
+
   /// Wallet / Unallocated Balance (The "Petty Cash" or "General Fund")
   /// Formula: Total Cost Center Balance - Sum(Category Balances)
   double get walletBalance {
     return costCenterBudgetBalance - pmeBalance - oteBalance;
+  }
+
+  /// Unallocated PME Budget (Temple PME Allotment - Total Allocated to PME Categories)
+  double get unallocatedPmeBudget {
+    final center = activeCostCenter;
+    if (center == null) return 0;
+    
+    double totalPmeBaseline = _getTotalPmeFromPeriods();
+    double totalAllocated = _categories
+        .where((c) => c.budgetType == BudgetType.PME)
+        .fold(0.0, (sum, cat) => sum + (getCategoryStatus(cat)['budget'] ?? 0));
+    
+    return totalPmeBaseline - totalAllocated;
+  }
+
+  /// Unallocated OTE Budget (Temple OTE Allotment - Total Allocated to OTE Categories)
+  double get unallocatedOteBudget {
+    final center = activeCostCenter;
+    if (center == null) return 0;
+    
+    double totalOteBaseline = _getTotalOteFromPeriods();
+    double totalAllocated = _categories
+        .where((c) => c.budgetType == BudgetType.OTE)
+        .fold(0.0, (sum, cat) => sum + (getCategoryStatus(cat)['budget'] ?? 0));
+    
+    return totalOteBaseline - totalAllocated;
   }
 
   Map<String, double> getCategoryStatus(BudgetCategory cat) {

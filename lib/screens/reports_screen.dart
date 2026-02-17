@@ -97,29 +97,79 @@ class ReportsScreen extends StatelessWidget {
   }
 
   void _showDetails(BuildContext context, AccountingProvider provider, String mainCategory) {
-    // Filter expenses by Main Category
-    final categoryIds = provider.categories
-        .where((c) => c.category == mainCategory)
-        .map((c) => c.id)
-        .toSet();
-    
-    final categoryExpenses = provider.expenses
-        .where((e) => categoryIds.contains(e.categoryId))
-        .toList();
-
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => TransactionHistoryScreen(
           title: '$mainCategory Expenses',
-          items: categoryExpenses,
           type: 'Expense',
           addScreen: const AddExpenseScreen(), // Not ideal to have "add" here, but fits the signature
+          itemSelector: (p) {
+            final categoryIds = p.categories
+                .where((c) => c.category == mainCategory)
+                .map((c) => c.id)
+                .toSet();
+            return p.expenses
+                .where((e) => categoryIds.contains(e.categoryId))
+                .toList();
+          },
           showEntryDetails: (context, item, type) {
-             // We can just reuse the dashboard's detail viewer or similar
-             // For now, let's keep it simple as the user focused on keyboard/navigation
+            // Re-using the simpler viewer for now, can be improved later
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: Text('$type Details'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Remarks: ${item.remarks ?? ''}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Text('Amount: ₹${item.amount}'),
+                    Text('Date: ${DateFormat('yyyy-MM-dd').format(item.date)}'),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      Navigator.push(context, MaterialPageRoute(builder: (c) => AddExpenseScreen(expenseToEdit: item as Expense)));
+                    },
+                    child: const Text('Edit'),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _confirmDelete(context, item);
+                    },
+                    child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+                  ),
+                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+                ],
+              ),
+            );
           },
         ),
+      ),
+    );
+  }
+
+  void _confirmDelete(BuildContext context, Expense item) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm Delete'),
+        content: const Text('Are you sure you want to delete this expense?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              await FirestoreService().deleteExpense(item.id);
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
       ),
     );
   }

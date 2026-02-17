@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
@@ -29,13 +30,23 @@ void main() async {
   );
 
   // Enable Offline Persistence for Web (Lightning Fast Open)
-  try {
-    FirebaseFirestore.instance.settings = const Settings(
-      persistenceEnabled: true,
-      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-    );
-  } catch (e) {
-    debugPrint("Firestore Persistence Error: $e");
+  if (kIsWeb) {
+    try {
+      await FirebaseFirestore.instance.enablePersistence(
+        const PersistenceSettings(synchronizeTabs: true)
+      );
+    } catch (e) {
+      debugPrint("Firestore Persistence Error: $e");
+    }
+  } else {
+    try {
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+    } catch (e) {
+      debugPrint("Firestore Persistence Error: $e");
+    }
   }
   
   // Sign in anonymously removed - now using Google Auth

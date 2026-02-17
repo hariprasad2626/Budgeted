@@ -50,168 +50,241 @@ class _LedgerScreenState extends State<LedgerScreen> {
         if (activeCenter != null && provider.budgetPeriods.isNotEmpty) {
           final activePeriods = provider.budgetPeriods.where((p) => p.isActive).toList();
 
-          if (filterMode == 'WALLET') {
-            // WALLET View: Consolidated view of ALL Savings and Surplus
-            final Set<String> months = {};
+          // Collect all months from active periods for PME logic
+          final Set<String> pmeMonths = {};
+          for (var p in activePeriods) {
+            pmeMonths.addAll(p.getAllMonths().where((m) => provider.isMonthInPastOrCurrent(m)));
+          }
+          final sortedMonths = pmeMonths.toList()..sort();
+
+          for (var m in sortedMonths) {
+            DateTime monthDate;
+            try { monthDate = DateFormat('yyyy-MM').parse(m); } catch (_) { continue; }
+
+            double monthlyBaseline = 0;
+            double monthlyBudgeted = 0;
+            String? monthRemark;
+
             for (var p in activePeriods) {
-              months.addAll(p.getAllMonths().where((m) => provider.isMonthInPastOrCurrent(m)));
-            }
-            final sortedMonths = months.toList()..sort();
-
-            for (var m in sortedMonths) {
-              DateTime monthDate;
-              try { monthDate = DateFormat('yyyy-MM').parse(m); } catch (_) { continue; }
-
-              double monthlyBaseline = 0;
-              double monthlyBudgeted = 0;
-              String? monthRemark;
-
-              for (var p in activePeriods) {
-                if (p.includesMonth(m)) {
-                  monthlyBaseline += p.defaultPmeAmount;
-                  monthlyBudgeted += p.getPmeForMonth(m);
-                  if (p.monthlyPmeRemarks.containsKey(m)) {
-                    monthRemark = p.monthlyPmeRemarks[m];
-                  }
+              if (p.includesMonth(m)) {
+                monthlyBaseline += p.defaultPmeAmount;
+                monthlyBudgeted += p.getPmeForMonth(m);
+                if (p.monthlyPmeRemarks.containsKey(m)) {
+                  monthRemark = p.monthlyPmeRemarks[m];
                 }
               }
+            }
 
-              // 1. Reduction Savings (The 20k the user is looking for)
-              if (monthlyBaseline > monthlyBudgeted) {
+            // 1. Monthly PME Credit (Show in PME or ALL)
+            if (filterMode == 'PME' || filterMode == 'ALL_CENTER') {
+              if (monthlyBudgeted > 0) {
                 budgetEntries.add({
                   'type': 'Budget',
-                  'source': 'System Savings',
-                  'amount': monthlyBaseline - monthlyBudgeted,
+                  'source': 'PME Allocation',
+                  'amount': monthlyBudgeted,
                   'date': monthDate,
-                  'title': 'PME Reduction Savings',
+                  'title': 'Monthly PME Allocation',
+                  'color': Colors.purpleAccent,
+                  'item': null,
+                  'budgetType': 'PME',
+                  'status': 'Recurring',
+                  'statusColor': Colors.purple,
+                  'categoryPath': (monthRemark != null && monthRemark.isNotEmpty) ? 'Adj: $monthRemark' : 'Monthly credit',
+                });
+              }
+            }
+
+            // 2. Unallocated PME Surplus (Debit from PME, Credit to Wallet)
+            double pmeSurplus = monthlyBudgeted - earmarkedPmeMonthly;
+            if (pmeSurplus > 0) {
+              if (filterMode == 'WALLET') {
+                budgetEntries.add({
+                  'type': 'Budget Move',
+                  'source': 'Unallocated',
+                  'amount': pmeSurplus,
+                  'date': monthDate,
+                  'title': 'PME Surplus Credit',
                   'color': Colors.amberAccent,
                   'item': null,
                   'budgetType': 'WALLET',
-                  'status': 'Saved',
+                  'status': 'Received',
                   'statusColor': Colors.amber,
-                  'categoryPath': (monthRemark != null && monthRemark.isNotEmpty) ? monthRemark : 'Budget reduced for this month',
+                  'categoryPath': 'Unallocated PME funds',
                 });
-              }
-
-              // 2. Unallocated Surplus
-              double leftover = monthlyBudgeted - earmarkedPmeMonthly;
-              if (leftover > 0) {
+              } else if (filterMode == 'PME') {
                 budgetEntries.add({
-                  'type': 'Budget',
-                  'source': 'Surplus',
-                  'amount': leftover,
+                  'type': 'Budget Move',
+                  'source': 'Unallocated',
+                  'amount': -pmeSurplus,
                   'date': monthDate,
-                  'title': 'Unallocated PME Surplus',
-                  'color': Colors.purpleAccent,
+                  'title': 'Move to Wallet (Unallocated)',
+                  'color': Colors.grey,
                   'item': null,
-                  'budgetType': 'WALLET',
-                  'status': 'Surplus',
-                  'statusColor': Colors.purple,
-                  'categoryPath': 'Unused capacity in PME budget',
+                  'budgetType': 'PME',
+                  'status': 'Debited',
+                  'statusColor': Colors.grey,
+                  'categoryPath': 'Sent to General Wallet',
                 });
               }
             }
 
-            // OTE Surplus for Wallet
-            double totalOteBudgeted = activePeriods.fold(0.0, (sum, p) => sum + p.oteAmount);
-            if (totalOteBudgeted > earmarkedOte) {
-              final now = DateTime.now();
-              final dayDate = DateTime(now.year, now.month, now.day);
+            // 3. PME Reduction Savings (Credit to Wallet only - it's a side pool)
+            double savings = monthlyBaseline - monthlyBudgeted;
+            if (savings > 0 && filterMode == 'WALLET') {
               budgetEntries.add({
                 'type': 'Budget',
-                'source': 'OTE Surplus',
-                'amount': totalOteBudgeted - earmarkedOte,
-                'date': dayDate,
-                'title': 'OTE Surplus Gap',
-                'color': Colors.tealAccent,
+                'source': 'System Savings',
+                'amount': savings,
+                'date': monthDate,
+                'title': 'PME Reduction Savings',
+                'color': Colors.amberAccent,
                 'item': null,
                 'budgetType': 'WALLET',
-                'status': 'Allocated',
-                'statusColor': Colors.teal,
-                'categoryPath': 'Unallocated OTE funds',
+                'status': 'Saved',
+                'statusColor': Colors.amber,
+                'categoryPath': 'Savings from baseline',
               });
             }
-          } else {
-            // PME, OTE, or ALL_CENTER Views: Original per-period detailed view
-            for (var period in activePeriods) {
-              // Add OTE entry
-              if ((filterMode == 'OTE' || filterMode == 'ALL_CENTER') && period.oteAmount != 0) {
-                DateTime oteDate;
-                try { oteDate = DateFormat('yyyy-MM').parse(period.startMonth); } catch (_) { oteDate = DateTime(2026, 1); }
-                
-                budgetEntries.add({
-                  'type': 'Budget',
-                  'source': 'Period: ${period.name}',
-                  'amount': period.oteAmount,
-                  'date': oteDate,
-                  'title': 'OTE Budget (${period.name})',
-                  'color': Colors.tealAccent,
-                  'item': null,
-                  'budgetType': 'OTE',
-                  'status': 'Allocated',
-                  'statusColor': Colors.teal,
-                  'categoryPath': 'OTE allocation',
-                });
-              }
+          }
 
-                  if (filterMode == 'ALL_CENTER' || filterMode == 'PME') {
-                    for (var monthStr in period.getAllMonths()) {
-                      DateTime monthDate;
-                      try { monthDate = DateFormat('yyyy-MM').parse(monthStr); } catch (_) { continue; }
-                      
-                      if (!provider.isMonthInPastOrCurrent(monthStr)) continue;
+          // 4. OTE Budget and Surplus
+          double totalOteBudgeted = activePeriods.fold(0.0, (sum, p) => sum + p.oteAmount);
+          if (totalOteBudgeted > 0) {
+            DateTime oteDate = DateTime.now(); // We take latest for OTE
+             try { 
+                final startStr = activePeriods.first.startMonth;
+                oteDate = DateFormat('yyyy-MM').parse(startStr);
+             } catch (_) {}
 
-                      double amount = period.getPmeForMonth(monthStr);
-                  if (amount <= 0) continue;
+            // OTE Credit
+            if (filterMode == 'OTE' || filterMode == 'ALL_CENTER') {
+              budgetEntries.add({
+                'type': 'Budget',
+                'source': 'OTE Allocation',
+                'amount': totalOteBudgeted,
+                'date': oteDate,
+                'title': 'OTE Period Budget',
+                'color': Colors.tealAccent,
+                'item': null,
+                'budgetType': 'OTE',
+                'status': 'Allocated',
+                'statusColor': Colors.teal,
+                'categoryPath': 'Full period allocation',
+              });
+            }
 
-                  String? monthRemark = period.monthlyPmeRemarks[monthStr];
-
-                  budgetEntries.add({
-                    'type': 'Budget',
-                    'source': 'Period: ${period.name}',
-                    'amount': amount,
-                    'date': monthDate,
-                    'title': 'Monthly PME (${period.name})',
-                    'color': Colors.purpleAccent,
+            // OTE Surplus
+            double oteSurplus = totalOteBudgeted - earmarkedOte;
+            if (oteSurplus > 0) {
+              if (filterMode == 'WALLET') {
+                 budgetEntries.add({
+                    'type': 'Budget Move',
+                    'source': 'Unallocated',
+                    'amount': oteSurplus,
+                    'date': oteDate,
+                    'title': 'OTE Surplus Gap',
+                    'color': Colors.amberAccent,
                     'item': null,
-                    'budgetType': 'PME',
-                    'status': 'Recurring',
-                    'statusColor': Colors.purple,
-                    'categoryPath': (monthRemark != null && monthRemark.isNotEmpty) ? 'Adjustment: $monthRemark' : 'Monthly allocation',
+                    'budgetType': 'WALLET',
+                    'status': 'Received',
+                    'statusColor': Colors.amber,
+                    'categoryPath': 'Unallocated OTE funds',
                   });
-                }
+              } else if (filterMode == 'OTE') {
+                budgetEntries.add({
+                    'type': 'Budget Move',
+                    'source': 'Unallocated',
+                    'amount': -oteSurplus,
+                    'date': oteDate,
+                    'title': 'Move to Wallet (Unallocated)',
+                    'color': Colors.grey,
+                    'item': null,
+                    'budgetType': 'OTE',
+                    'status': 'Debited',
+                    'statusColor': Colors.grey,
+                    'categoryPath': 'Sent to General Wallet',
+                  });
               }
             }
+          }
+        }
+
+        // Calculate chronological advance coverage for offsets
+        double cumulativeAdvancePool = provider.transfers
+            .where((t) => t.type == TransferType.TO_PERSONAL && t.costCenterId == activeCenter.id)
+            .fold(0.0, (sum, t) => sum + t.amount);
+        
+        // Sort settled expenses by date ascending
+        final settledExpenses = provider.expenses
+            .where((e) => e.moneySource == MoneySource.PERSONAL && e.isSettled)
+            .toList()..sort((a, b) => a.date.compareTo(b.date));
+        
+        final Map<String, double> expenseCoverage = {};
+        double usedPool = 0;
+        for (var e in settledExpenses) {
+          double canCover = cumulativeAdvancePool - usedPool;
+          if (canCover > 0) {
+            double coverage = e.amount > canCover ? canCover : e.amount;
+            expenseCoverage[e.id] = coverage;
+            usedPool += coverage;
+          } else {
+            expenseCoverage[e.id] = 0;
           }
         }
 
         // Gather all relevant transactions for this center
         List<Map<String, dynamic>> allEntries = [
           ...budgetEntries,
-          ...provider.expenses.where((e) => e.moneySource != MoneySource.PERSONAL && e.amount != 0).map((e) {
+          ...provider.expenses.where((e) => e.moneySource != MoneySource.PERSONAL && e.amount != 0).expand((e) {
                 final source = e.moneySource.toString().split('.').last;
+                final bType = (e.moneySource == MoneySource.WALLET) ? 'WALLET' : e.budgetType.toString().split('.').last;
+                final actualBType = e.budgetType.toString().split('.').last;
+
                 String catName = 'General Wallet';
                 try {
                   final cat = provider.categories.firstWhere((c) => c.id == e.categoryId);
                   catName = '${cat.category} -> ${cat.subCategory}';
                 } catch (_) {}
                 
-                return {
-                'type': 'Expense',
-                'source': source,
-                'amount': -e.amount,
-                'date': e.date,
-                'title': e.remarks,
-                'color': Colors.redAccent,
-                'item': e,
-                'budgetType': source == 'WALLET' ? 'WALLET' : e.budgetType.toString().split('.').last,
-                'status': 'Debited',
-                'statusColor': Colors.redAccent,
-                'categoryPath': catName,
-              };
+                final List<Map<String, dynamic>> multi = [];
+
+                // 1. Budget Side (PME/OTE/etc)
+                multi.add({
+                  'type': 'Expense',
+                  'source': source,
+                  'amount': -e.amount,
+                  'date': e.date,
+                  'title': e.remarks,
+                  'color': Colors.redAccent,
+                  'item': e,
+                  'budgetType': actualBType, // This MUST match PME/OTE strings
+                  'status': 'Debited',
+                  'statusColor': Colors.redAccent,
+                  'categoryPath': catName,
+                });
+
+                // 2. Wallet Side (If paid from wallet but budget category was PME/OTE)
+                // We add a synthetic entry to show in the WALLET view
+                if (e.moneySource == MoneySource.WALLET && actualBType != 'WALLET') {
+                  multi.add({
+                    'type': 'Wallet usage',
+                    'source': 'Wallet',
+                    'amount': -e.amount,
+                    'date': e.date,
+                    'title': '${e.remarks} (via Wallet)',
+                    'color': Colors.grey,
+                    'item': e,
+                    'budgetType': 'WALLET',
+                    'status': 'Paid from Wallet',
+                    'statusColor': Colors.grey,
+                    'categoryPath': 'Charge to $actualBType: $catName',
+                  });
+                }
+
+                return multi;
             }),
 
-          ...provider.donations.where((d) => d.amount != 0).map((d) {
+          ...provider.donations.where((d) => d.amount != 0).expand((d) {
                 String? bType;
                 String catName = 'General Wallet';
                 if (d.mode == DonationMode.MERGE_TO_BUDGET && d.budgetCategoryId != null) {
@@ -224,19 +297,41 @@ class _LedgerScreenState extends State<LedgerScreen> {
                   bType = 'WALLET';
                 }
 
-                return {
-                'type': 'Donation',
-                'source': d.mode == DonationMode.WALLET ? 'WALLET' : 'ISKCON',
-                'amount': d.amount,
-                'date': d.date,
-                'title': d.remarks,
-                'color': Colors.greenAccent,
-                'item': d,
-                'budgetType': bType,
-                'status': 'Received',
-                'statusColor': Colors.greenAccent,
-                'categoryPath': catName,
-              };
+                final List<Map<String, dynamic>> multi = [];
+
+                // 1. Budget Side
+                multi.add({
+                  'type': 'Donation',
+                  'source': d.mode == DonationMode.WALLET ? 'WALLET' : 'ISKCON',
+                  'amount': d.amount,
+                  'date': d.date,
+                  'title': d.remarks,
+                  'color': Colors.greenAccent,
+                  'item': d,
+                  'budgetType': bType,
+                  'status': 'Received',
+                  'statusColor': Colors.greenAccent,
+                  'categoryPath': catName,
+                });
+
+                // 2. Wallet Side (if earmarked donation was paid into wallet)
+                if (d.mode == DonationMode.WALLET && bType != 'WALLET' && bType != null) {
+                   multi.add({
+                    'type': 'Wallet deposit',
+                    'source': 'Wallet',
+                    'amount': d.amount,
+                    'date': d.date,
+                    'title': '${d.remarks} (to Wallet)',
+                    'color': Colors.grey,
+                    'item': d,
+                    'budgetType': 'WALLET',
+                    'status': 'Wallet Credit',
+                    'statusColor': Colors.grey,
+                    'categoryPath': 'Earmarked for $bType',
+                  });
+                }
+
+                return multi;
           }),
            ...provider.transfers.where((t) {
                 final isDirect = t.costCenterId == activeCenter.id;
@@ -343,67 +438,70 @@ class _LedgerScreenState extends State<LedgerScreen> {
 
                    return entries;
                 }
-           }),
-           ...provider.centerAdjustments.where((a) => a.amount != 0).map((a) {
-                final isCredit = a.type == AdjustmentType.CREDIT;
-                String? bType;
-                if (a.budgetType != null) {
-                  bType = a.budgetType.toString().split('.').last;
-                } else {
-                  bType = 'WALLET';
-                }
-                return {
-                    'type': 'Adjustment',
-                    'source': 'Center',
-                    'amount': isCredit ? a.amount : -a.amount,
-                    'date': a.date,
-                    'title': a.remarks,
-                    'color': Colors.orangeAccent,
-                    'item': a,
-                    'budgetType': bType,
-                    'status': isCredit ? 'Credit' : 'Debit',
-                    'statusColor': Colors.orangeAccent,
-                    'categoryPath': 'Manual Adjustment',
-                };
-           }),
-           ...provider.expenses.where((e) => e.moneySource == MoneySource.PERSONAL && e.amount != 0 && e.isSettled).expand((e) {
-                String catName = 'Global/Wallet';
-                String bType = 'WALLET';
-                try {
-                  final cat = provider.categories.firstWhere((c) => c.id == e.categoryId);
-                  catName = '${cat.category} -> ${cat.subCategory}';
-                  bType = cat.budgetType.toString().split('.').last;
-                } catch (_) {}
+            }),
+            ...provider.centerAdjustments.where((a) => a.amount != 0).map((a) {
+                 final isCredit = a.type == AdjustmentType.CREDIT;
+                 String? bType;
+                 if (a.budgetType != null) {
+                   bType = a.budgetType.toString().split('.').last;
+                 } else {
+                   bType = 'WALLET';
+                 }
+                 return {
+                     'type': 'Adjustment',
+                     'source': 'Center',
+                     'amount': isCredit ? a.amount : -a.amount,
+                     'date': a.date,
+                     'title': a.remarks,
+                     'color': Colors.orangeAccent,
+                     'item': a,
+                     'budgetType': bType,
+                     'status': isCredit ? 'Credit' : 'Debit',
+                     'statusColor': Colors.orangeAccent,
+                     'categoryPath': 'Manual Adjustment',
+                 };
+            }),
+            ...provider.expenses.where((e) => e.moneySource == MoneySource.PERSONAL && e.amount != 0 && e.isSettled).expand((e) {
+                 String catName = 'Global/Wallet';
+                 String bType = 'WALLET';
+                 try {
+                   final cat = provider.categories.firstWhere((c) => c.id == e.categoryId);
+                   catName = '${cat.category} -> ${cat.subCategory}';
+                   bType = cat.budgetType.toString().split('.').last;
+                 } catch (_) {}
 
-                return [
-                  {
-                    'type': 'Expense',
-                    'source': 'Personal (Settled)',
-                    'amount': -e.amount, 
-                    'date': e.date,
-                    'title': '${e.remarks} (via Advance)',
-                    'color': Colors.redAccent,
-                    'item': e,
-                    'budgetType': bType,
-                    'status': 'Spent',
-                    'statusColor': Colors.redAccent,
-                    'categoryPath': catName,
-                  },
-                  {
-                    'type': 'Settlement',
-                    'source': 'Wallet Credit',
-                    'amount': e.amount, 
-                    'date': e.date,
-                    'title': 'Settled: ${e.remarks}',
-                    'color': e.isSettled ? Colors.green : Colors.grey,
-                    'item': e,
-                    'budgetType': 'WALLET', 
-                    'status': e.isSettled ? 'Settled' : 'Unsettled',
-                    'statusColor': e.isSettled ? Colors.green : Colors.grey,
-                    'categoryPath': 'Pocket -> $catName',
-                  }
-                ];
-           }),
+                 final coverage = expenseCoverage[e.id] ?? 0.0;
+
+                 return [
+                   {
+                     'type': 'Expense',
+                     'source': 'Personal (Settled)',
+                     'amount': -e.amount, 
+                     'date': e.date,
+                     'title': '${e.remarks} (Personal)',
+                     'color': Colors.redAccent,
+                     'item': e,
+                     'budgetType': bType,
+                     'status': 'Spent',
+                     'statusColor': Colors.redAccent,
+                     'categoryPath': catName,
+                   },
+                   if (coverage > 0)
+                    {
+                      'type': 'Settlement',
+                      'source': 'Wallet Offset',
+                      'amount': coverage, 
+                      'date': e.date,
+                      'title': 'Advance Offset: ${e.remarks}',
+                      'color': Colors.tealAccent,
+                      'item': e,
+                      'budgetType': 'WALLET', 
+                      'status': 'Offset',
+                      'statusColor': Colors.tealAccent,
+                      'categoryPath': 'Portion covered by Advance',
+                    }
+                 ];
+            }),
         ];
 
         // Header and Data Filtering
@@ -435,10 +533,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
            displayBalance = provider.costCenterBudgetBalance;
            headerTitle = 'Total CC Balance';
            // ALL_CENTER shows everything that affects REAL CASH in the bank.
-           // This includes: Normal Expenses, Donations, Adjustments, Transfers (Advances), and Category usage.
-           // To avoid double counting Advances vs Settlements, we show the 'Expense' side of the settlement 
-           // but NOT the 'Settlement' credit side (which is just internal debt repayment).
-           allEntries = allEntries.where((e) => e['type'] != 'Settlement').toList();
+           allEntries = allEntries.where((e) => e['type'] != 'Wallet usage' && e['type'] != 'Wallet deposit' && e['type'] != 'Budget Move').toList();
         }
 
         // Apply Search and Date Filters
@@ -482,7 +577,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text('${activeCenter.name} Ledger'),
+            title: Text('${activeCenter.name} Ledger (v1.1.3+27)'),
           ),
           body: Column(
             children: [
@@ -747,18 +842,30 @@ class _LedgerScreenState extends State<LedgerScreen> {
             leading: const Icon(Icons.payment, color: Colors.redAccent),
             title: const Text('Direct Spend (Expense)'),
             onTap: () { 
-              final provider = Provider.of<AccountingProvider>(context, listen: false);
               Navigator.pop(context); 
-              _showHistoryPopup(context, 'Direct Spend History', provider.expenses.where((e) => e.moneySource != MoneySource.PERSONAL).toList(), 'Expense', const AddExpenseScreen()); 
+              _showHistoryPopup(
+                context, 
+                'Direct Spend History', 
+                null,
+                (p) => p.expenses.where((e) => e.moneySource != MoneySource.PERSONAL).toList(),
+                'Expense', 
+                const AddExpenseScreen()
+              ); 
             },
           ),
           ListTile(
             leading: const Icon(Icons.volunteer_activism, color: Colors.greenAccent),
             title: const Text('Donation'),
             onTap: () { 
-              final provider = Provider.of<AccountingProvider>(context, listen: false);
               Navigator.pop(context); 
-              _showHistoryPopup(context, 'Donation History', provider.donations, 'Donation', const AddDonationScreen()); 
+              _showHistoryPopup(
+                context, 
+                'Donation History', 
+                null,
+                (p) => p.donations,
+                'Donation', 
+                const AddDonationScreen()
+              ); 
             },
           ),
           ListTile(
@@ -782,13 +889,14 @@ class _LedgerScreenState extends State<LedgerScreen> {
     );
   }
 
-  void _showHistoryPopup(BuildContext context, String title, List<dynamic> items, String type, Widget addScreen) {
+  void _showHistoryPopup(BuildContext context, String title, List<dynamic>? items, List<dynamic> Function(AccountingProvider)? itemSelector, String type, Widget addScreen) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => TransactionHistoryScreen(
           title: title,
           items: items,
+          itemSelector: itemSelector,
           type: type,
           addScreen: addScreen,
           showEntryDetails: _showEntryDetails,

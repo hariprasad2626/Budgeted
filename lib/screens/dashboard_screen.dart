@@ -288,7 +288,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         icon: Icons.payment,
                         color: Colors.redAccent,
                         label: 'Spend',
-                        onTap: () => _showHistoryPopup(context, 'Direct Spend History', provider.expenses.where((e) => e.moneySource != MoneySource.PERSONAL).toList(), 'Expense', const AddExpenseScreen()),
+                        onTap: () => _showHistoryPopup(
+                            context, 
+                            'Direct Spend History', 
+                            null, 
+                            (p) => p.expenses.where((e) => e.moneySource != MoneySource.PERSONAL).toList(),
+                            'Expense', 
+                            const AddExpenseScreen()
+                        ),
                       ),
                     ),
                   ),
@@ -300,7 +307,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         icon: Icons.volunteer_activism,
                         color: Colors.greenAccent,
                         label: 'Donation',
-                        onTap: () => _showHistoryPopup(context, 'Donation History', provider.donations, 'Donation', const AddDonationScreen()),
+                        onTap: () => _showHistoryPopup(
+                            context, 
+                            'Donation History', 
+                            null, 
+                            (p) => p.donations,
+                            'Donation', 
+                            const AddDonationScreen()
+                        ),
                       ),
                     ),
                   ),
@@ -320,10 +334,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         label: 'Advance (Per)',
                         onTap: () => _showHistoryPopup(
                             context, 
-                            'Personal Advance History', 
-                            provider.transfers.where((t) => t.costCenterId == activeCenter.id && t.type == TransferType.TO_PERSONAL && t.fromCategoryId == null && t.toCategoryId == null).toList(), 
-                            'Transfer', 
-                            const AddTransferScreen(initialType: TransferType.TO_PERSONAL)
+                             'Personal Advance History', 
+                             null,
+                             (p) => p.transfers.where((t) => t.costCenterId == activeCenter.id && t.type == TransferType.TO_PERSONAL && t.fromCategoryId == null && t.toCategoryId == null).toList(), 
+                             'Transfer', 
+                             const AddTransferScreen(initialType: TransferType.TO_PERSONAL)
                         ),
                       ),
                     ),
@@ -338,10 +353,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                         label: 'Inter-Transfer',
                         onTap: () => _showHistoryPopup(
                             context,
-                            'Internal Transfer History', 
-                            provider.transfers.where((t) => t.costCenterId == activeCenter.id && t.type == TransferType.CATEGORY_TO_CATEGORY).toList(), 
-                            'Internal Transfer', // Changed type string to distinguish in popup
-                            const AddTransferScreen(initialType: TransferType.CATEGORY_TO_CATEGORY)
+                             'Internal Transfer History', 
+                             null,
+                             (p) => p.transfers.where((t) => t.costCenterId == activeCenter.id && t.type == TransferType.CATEGORY_TO_CATEGORY).toList(), 
+                             'Internal Transfer', // Changed type string to distinguish in popup
+                             const AddTransferScreen(initialType: TransferType.CATEGORY_TO_CATEGORY)
                         ),
                       ),
                     ),
@@ -485,17 +501,25 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               _ActionCard(
                 icon: Icons.account_balance,
                 color: Colors.tealAccent,
-                label: 'Personal Adj',
-                onTap: () => _showHistoryPopup(context, 'Personal Advance History', provider.adjustments, 'PersonalAdjustment', const AddAdjustmentScreen()),
+                 label: 'Personal Adj',
+                onTap: () => _showHistoryPopup(
+                    context, 
+                    'Personal Advance History', 
+                    null,
+                    (p) => p.adjustments,
+                    'Adjustment', 
+                    const AddAdjustmentScreen()
+                ),
               ),
               _ActionCard(
                 icon: Icons.swap_horiz,
                 color: Colors.blueAccent,
-                label: 'Adv Received',
+                 label: 'Adv Received',
                 onTap: () => _showHistoryPopup(
                   context, 
                   'Advance Received History', 
-                  provider.transfers.where((t) => t.costCenterId == provider.activeCostCenterId && t.type == TransferType.TO_PERSONAL && t.fromCategoryId == null && t.toCategoryId == null).toList(), 
+                  null,
+                  (p) => p.transfers.where((t) => t.costCenterId == p.activeCostCenterId && t.type == TransferType.TO_PERSONAL && t.fromCategoryId == null && t.toCategoryId == null).toList(), 
                   'Transfer', 
                   const AddTransferScreen(initialType: TransferType.TO_PERSONAL)
                 ),
@@ -633,13 +657,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     );
   }
 
-  void _showHistoryPopup(BuildContext context, String title, List<dynamic> items, String type, Widget addScreen) {
+   void _showHistoryPopup(BuildContext context, String title, List<dynamic>? items, List<dynamic> Function(AccountingProvider)? itemSelector, String type, Widget addScreen) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => TransactionHistoryScreen(
           title: title,
           items: items,
+          itemSelector: itemSelector,
           type: type,
           addScreen: addScreen,
           showEntryDetails: _showEntryDetails,
@@ -741,7 +766,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              if (type == 'Expense') {
+               if (type == 'Expense') {
                 _showForm(context, AddExpenseScreen(expenseToEdit: item as Expense));
               } else if (type == 'Donation') {
                 _showForm(context, AddDonationScreen(donationToEdit: item as Donation));
@@ -751,7 +776,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 } else {
                   _showForm(context, AddCenterAdjustmentScreen(adjustmentToEdit: item as CostCenterAdjustment));
                 }
-              } else if (type == 'Transfer') {
+              } else if (type == 'Transfer' || type == 'Internal Transfer') {
                 _showForm(context, AddTransferScreen(transferToEdit: item as FundTransfer));
               }
             },

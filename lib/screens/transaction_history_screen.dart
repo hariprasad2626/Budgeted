@@ -12,7 +12,8 @@ import '../models/budget_category.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
   final String title;
-  final List<dynamic> items;
+  final List<dynamic>? items;
+  final List<dynamic> Function(AccountingProvider)? itemSelector;
   final String type;
   final Widget addScreen;
   final Function(BuildContext, dynamic, String) showEntryDetails;
@@ -20,13 +21,14 @@ class TransactionHistoryScreen extends StatefulWidget {
 
   const TransactionHistoryScreen({
     super.key,
+    this.items,
+    this.itemSelector,
     required this.title,
-    required this.items,
     required this.type,
     required this.addScreen,
     required this.showEntryDetails,
     this.contextEntityId,
-  });
+  }) : assert(items != null || itemSelector != null, 'Either items or itemSelector must be provided');
 
   @override
   State<TransactionHistoryScreen> createState() => _TransactionHistoryScreenState();
@@ -37,34 +39,36 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<AccountingProvider>(context, listen: false);
-    final sortedItems = List.from(widget.items)..sort((a, b) => (b.date as DateTime).compareTo(a.date as DateTime));
+    return Consumer<AccountingProvider>(
+      builder: (context, provider, child) {
+        final itemsSource = widget.itemSelector != null ? widget.itemSelector!(provider) : widget.items!;
+        final sortedItems = List.from(itemsSource)..sort((a, b) => (b.date as DateTime).compareTo(a.date as DateTime));
 
-    double selectedSum = sortedItems
-        .where((item) => _selectedIds.contains(item.id))
-        .fold(0.0, (sum, item) {
-          double amount = item.amount ?? 0.0;
-          bool isCredit = false;
-          
-          if (item is Donation) isCredit = true;
-          else if (item is FundTransfer) {
-             if (item.type != TransferType.CATEGORY_TO_CATEGORY) {
-               isCredit = true; // Advance
-             } else {
-               // Context-aware check
-               if (widget.contextEntityId != null && item.toCategoryId == widget.contextEntityId) {
-                 isCredit = true;
-               } else {
-                 isCredit = false; 
-               }
-             }
-          }
-          else if (item is PersonalAdjustment && item.type == AdjustmentType.CREDIT) isCredit = true;
-          else if (item is CostCenterAdjustment && item.type == AdjustmentType.CREDIT) isCredit = true;
-          else if (item is BudgetCategory) isCredit = true; 
-          
-          return sum + (isCredit ? amount : -amount);
-        });
+        double selectedSum = sortedItems
+            .where((item) => _selectedIds.contains(item.id))
+            .fold(0.0, (sum, item) {
+              double amount = item.amount ?? 0.0;
+              bool isCredit = false;
+              
+              if (item is Donation) isCredit = true;
+              else if (item is FundTransfer) {
+                if (item.type != TransferType.CATEGORY_TO_CATEGORY) {
+                  isCredit = true; // Advance
+                } else {
+                  // Context-aware check
+                  if (widget.contextEntityId != null && item.toCategoryId == widget.contextEntityId) {
+                    isCredit = true;
+                  } else {
+                    isCredit = false; 
+                  }
+                }
+              }
+              else if (item is PersonalAdjustment && item.type == AdjustmentType.CREDIT) isCredit = true;
+              else if (item is CostCenterAdjustment && item.type == AdjustmentType.CREDIT) isCredit = true;
+              else if (item is BudgetCategory) isCredit = true; 
+              
+              return sum + (isCredit ? amount : -amount);
+            });
 
     return Scaffold(
       appBar: AppBar(
@@ -300,6 +304,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           ),
         ],
       ),
+      },
     );
   }
 }
