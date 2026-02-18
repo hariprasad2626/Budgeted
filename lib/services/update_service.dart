@@ -53,7 +53,7 @@ class UpdateService {
                   ElevatedButton(
                     onPressed: () async {
                        platform.setLocalTimestamp(serverTimestamp);
-                       platform.reloadPage();
+                       await platform.reloadPage();
                     },
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.teal),
                     child: const Text('Update Now', style: TextStyle(color: Colors.white)),

@@ -27,6 +27,26 @@ void setLocalTimestamp(int timestamp) {
 }
 
 /// Reloads the page
-void reloadPage() {
+/// Reloads the page forcefully by clearing service workers first
+Future<void> reloadPage() async {
+  try {
+    // Unregister all service workers to force a clean fetch on next load
+    final registrations = await html.window.navigator.serviceWorker?.getRegistrations();
+    if (registrations != null) {
+      for (var reg in (registrations as List)) {
+         await reg.unregister();
+         debugPrint('Service worker unregistered');
+      }
+    }
+    // Clear browser cache for this site if possible (Cache API)
+    await html.window.caches?.keys().then((keys) {
+      return Future.wait(keys.map((key) => html.window.caches!.delete(key)));
+    });
+  } catch (e) {
+    debugPrint('Error during forceful reload: $e');
+  }
+  
+  // Reload bypasses the browser cache
+  html.window.location.href = html.window.location.href;
   html.window.location.reload();
 }
