@@ -85,7 +85,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
           final filteredCats = allCategories.where((c) => c.costCenterId == selectedCostCenterId).toList();
           
           return AlertDialog(
-            title: Text('Settle ${_selectedExpenseIds.length} Expenses'),
+            title: Text('Settle ${_selectedExpenseIds.length} Expenses (v${AccountingProvider.appVersion})'),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
