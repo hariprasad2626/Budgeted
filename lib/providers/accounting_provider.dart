@@ -312,6 +312,49 @@ class AccountingProvider with ChangeNotifier {
         .fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['remaining']!);
   }
 
+  BudgetType getBudgetTypeForCategory(String categoryId) {
+    try {
+      return _categories.firstWhere((c) => c.id == categoryId).budgetType;
+    } catch (_) {
+      return BudgetType.OTE;
+    }
+  }
+
+  double get unallocatedPmeBudget {
+    final center = activeCostCenter;
+    if (center == null) return 0;
+
+    double totalPmePool = 0;
+    final Set<String> elapsedMonths = {};
+    for (var period in _budgetPeriods.where((p) => p.isActive)) {
+      for (var month in period.getAllMonths()) {
+        if (isMonthInPastOrCurrent(month)) {
+          totalPmePool += period.getPmeForMonth(month);
+          elapsedMonths.add(month);
+        }
+      }
+    }
+
+    double distributedPme = _categories
+        .where((c) => c.budgetType == BudgetType.PME && c.isActive)
+        .fold(0.0, (sum, cat) => sum + (cat.targetAmount * elapsedMonths.length));
+
+    return totalPmePool - distributedPme;
+  }
+
+  double get unallocatedOteBudget {
+    final center = activeCostCenter;
+    if (center == null) return 0;
+
+    double totalOtePool = _budgetPeriods.where((p) => p.isActive).fold(0.0, (sum, p) => sum + p.oteAmount);
+
+    double distributedOte = _categories
+        .where((c) => c.budgetType == BudgetType.OTE && c.isActive)
+        .fold(0.0, (sum, cat) => sum + cat.targetAmount);
+
+    return totalOtePool - distributedOte;
+  }
+
   double get costCenterBudgetBalance {
     final center = activeCostCenter;
     if (center == null) return 0;
