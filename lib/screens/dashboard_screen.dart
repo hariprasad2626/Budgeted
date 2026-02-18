@@ -595,6 +595,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               await AuthService().signOut();
             },
           ),
+          const Divider(),
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Text(
+              'App Version: ${AccountingProvider.appVersion}',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+              textAlign: TextAlign.center,
+            ),
+          ),
         ],
       ),
     );
