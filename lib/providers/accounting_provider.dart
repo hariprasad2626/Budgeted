@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.5+33';
+  static const String appVersion = '1.1.6+34';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -551,6 +551,32 @@ class AccountingProvider with ChangeNotifier {
         metrics[month]!['ote_actual'] = (metrics[month]!['ote_actual'] ?? 0) + expense.amount;
       }
     }
+
+    for (var transfer in _transfers) {
+      if (transfer.type == TransferType.CATEGORY_TO_CATEGORY && transfer.targetMonth != null) {
+        String month = transfer.targetMonth!;
+        metrics.putIfAbsent(month, () => {'pme_budget': 0.0, 'ote_budget': 0.0, 'pme_actual': 0.0, 'ote_actual': 0.0});
+        
+        if (transfer.toCategoryId != null) {
+          try {
+            final toCat = _categories.firstWhere((c) => c.id == transfer.toCategoryId);
+            if (toCat.budgetType == BudgetType.PME) {
+              metrics[month]!['pme_budget'] = (metrics[month]!['pme_budget'] ?? 0) + transfer.amount;
+            }
+          } catch (_) {}
+        }
+        
+        if (transfer.fromCategoryId != null) {
+          try {
+            final fromCat = _categories.firstWhere((c) => c.id == transfer.fromCategoryId);
+            if (fromCat.budgetType == BudgetType.PME) {
+              metrics[month]!['pme_budget'] = (metrics[month]!['pme_budget'] ?? 0) - transfer.amount;
+            }
+          } catch (_) {}
+        }
+      }
+    }
+
     return metrics;
   }
 }

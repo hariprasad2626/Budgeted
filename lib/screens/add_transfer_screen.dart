@@ -32,6 +32,8 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
   // Selection state for TO
   String? _toCategoryName;
   String? _toCategoryId;
+  
+  String? _targetMonth;
 
   @override
   void initState() {
@@ -45,6 +47,7 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
       _type = t.type;
       _fromCategoryId = t.fromCategoryId;
       _toCategoryId = t.toCategoryId;
+      _targetMonth = t.targetMonth;
       
       // We'll resolve category names in build() or after first frame
     } else {
@@ -81,6 +84,22 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
     
     final fromSubCats = _fromCategoryName == null ? <BudgetCategory>[] : allCats.where((c) => c.category == _fromCategoryName).toList();
     final toSubCats = _toCategoryName == null ? <BudgetCategory>[] : allCats.where((c) => c.category == _toCategoryName).toList();
+
+    // Determine if any selected category is PME
+    bool isPme = false;
+    if (_fromCategoryId != null) {
+      if (allCats.any((c) => c.id == _fromCategoryId && c.budgetType == BudgetType.PME)) isPme = true;
+    }
+    if (_toCategoryId != null) {
+      if (allCats.any((c) => c.id == _toCategoryId && c.budgetType == BudgetType.PME)) isPme = true;
+    }
+
+    final availableMonths = provider.budgetPeriods
+        .where((p) => p.isActive)
+        .expand((p) => p.getAllMonths())
+        .toSet()
+        .toList()
+        ..sort((a, b) => b.compareTo(a));
 
     return Scaffold(
       appBar: AppBar(
@@ -184,6 +203,28 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
                     validator: (val) => val == null ? 'Required' : null,
                   ),
                 ],
+              ],
+
+              if (_type == TransferType.CATEGORY_TO_CATEGORY && isPme) ...[
+                const SizedBox(height: 24),
+                Text('TARGET MONTH (FOR PME)', style: _labelStyle),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String?>(
+                  isExpanded: true,
+                  decoration: _inputDecoration('Select Month (Optional)'),
+                  value: _targetMonth,
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null, 
+                      child: Text('All Months/General (Default)', style: TextStyle(color: Colors.grey))
+                    ),
+                    ...availableMonths.map((m) => DropdownMenuItem(
+                      value: m,
+                      child: Text(DateFormat('MMMM yyyy').format(DateFormat('yyyy-MM').parse(m))),
+                    )),
+                  ],
+                  onChanged: (val) => setState(() => _targetMonth = val),
+                ),
               ],
               
               const SizedBox(height: 24),
@@ -311,6 +352,7 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
       type: _type,
       fromCategoryId: _fromCategoryId,
       toCategoryId: _toCategoryId,
+      targetMonth: _targetMonth,
     );
 
     if (widget.transferToEdit == null) {

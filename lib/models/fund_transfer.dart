@@ -13,6 +13,7 @@ class FundTransfer {
   // Optional for Category-to-Category transfers
   final String? fromCategoryId;
   final String? toCategoryId; // If null, it can mean "Unallocated" (Wallet)
+  final String? targetMonth; // Format: yyyy-MM
   
   FundTransfer({
     required this.id,
@@ -23,6 +24,7 @@ class FundTransfer {
     this.type = TransferType.TO_PERSONAL,
     this.fromCategoryId,
     this.toCategoryId,
+    this.targetMonth,
   });
 
   Map<String, dynamic> toMap() {
@@ -34,6 +36,7 @@ class FundTransfer {
       'type': type.toString().split('.').last,
       'fromCategoryId': fromCategoryId,
       'toCategoryId': toCategoryId,
+      'targetMonth': targetMonth,
     };
   }
 
@@ -60,6 +63,7 @@ class FundTransfer {
       type: tType,
       fromCategoryId: map['fromCategoryId'],
       toCategoryId: map['toCategoryId'],
+      targetMonth: map['targetMonth'],
     );
   }
 }
