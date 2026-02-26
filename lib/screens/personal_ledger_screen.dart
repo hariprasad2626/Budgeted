@@ -840,6 +840,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
         date: expense.date,
         remarks: expense.remarks,
         isSettled: false, // Mark as unsettled
+        settledAgainstAdvance: false, // Clear out the advance flag
       );
       
       await FirestoreService().updateExpense(updated);

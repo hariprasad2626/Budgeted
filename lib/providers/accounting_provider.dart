@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.4+32';
+  static const String appVersion = '1.1.5+33';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -277,7 +277,7 @@ class AccountingProvider with ChangeNotifier {
           .fold(0.0, (sum, e) => sum + e.amount);
 
       double ccSettled = _allExpenses
-          .where((e) => e.costCenterId == ccId && e.moneySource == MoneySource.PERSONAL && e.isSettled)
+          .where((e) => e.costCenterId == ccId && e.moneySource == MoneySource.PERSONAL && e.isSettled && !e.settledAgainstAdvance)
           .fold(0.0, (sum, e) => sum + e.amount);
 
       totalBalance += (ccTransfers + ccSettled - ccExpenses);
@@ -337,7 +337,7 @@ class AccountingProvider with ChangeNotifier {
 
     double distributedPme = _categories
         .where((c) => c.budgetType == BudgetType.PME && c.isActive)
-        .fold(0.0, (sum, cat) => sum + (cat.targetAmount * elapsedMonths.length));
+        .fold(0.0, (sum, cat) => sum + (cat.targetAmount * getElapsedMonthsForCategory(cat)));
 
     return totalPmePool - distributedPme;
   }
@@ -411,15 +411,7 @@ class AccountingProvider with ChangeNotifier {
   Map<String, double> getCategoryStatus(BudgetCategory cat) {
     double budget = cat.targetAmount;
     if (cat.budgetType == BudgetType.PME) {
-      final Set<String> elapsedMonths = {};
-      for (var period in _budgetPeriods.where((p) => p.isActive)) {
-        for (var month in period.getAllMonths()) {
-          if (isMonthInPastOrCurrent(month)) {
-            elapsedMonths.add(month);
-          }
-        }
-      }
-      budget = budget * elapsedMonths.length;
+      budget = budget * getElapsedMonthsForCategory(cat);
     }
 
     final donations = _donations
@@ -465,6 +457,29 @@ class AccountingProvider with ChangeNotifier {
     }
   }
 
+  bool isMonthOnOrAfterCategoryCreation(String month, DateTime createdAt) {
+    try {
+      final parts = month.split('-');
+      final monthVal = int.parse(parts[0]) * 100 + int.parse(parts[1]);
+      final createdVal = createdAt.year * 100 + createdAt.month;
+      return monthVal >= createdVal;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  int getElapsedMonthsForCategory(BudgetCategory cat) {
+    final Set<String> elapsedMonths = {};
+    for (var period in _budgetPeriods.where((p) => p.isActive)) {
+      for (var month in period.getAllMonths()) {
+        if (isMonthInPastOrCurrent(month) && isMonthOnOrAfterCategoryCreation(month, cat.createdAt)) {
+          elapsedMonths.add(month);
+        }
+      }
+    }
+    return elapsedMonths.length;
+  }
+
   @override
   void dispose() {
     _catSub?.cancel();
@@ -496,6 +511,15 @@ class AccountingProvider with ChangeNotifier {
     required String remarks,
   }) async {
     if (_activeCostCenterId == null) return;
+
+    if (isToWallet) {
+      final cat = _categories.firstWhere((c) => c.id == categoryId, orElse: () => throw Exception('Category not found'));
+      final status = getCategoryStatus(cat);
+      if (status['remaining']! < amount) {
+        throw Exception('Insufficient category balance. You can only transfer up to ₹${status['remaining']!.toStringAsFixed(2)} to wallet.');
+      }
+    }
+
     final transfer = FundTransfer(
       id: '',
       costCenterId: _activeCostCenterId!,
