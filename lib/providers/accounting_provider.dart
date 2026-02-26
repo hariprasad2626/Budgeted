@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.7+35';
+  static const String appVersion = '1.1.8+36';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -426,13 +426,26 @@ class AccountingProvider with ChangeNotifier {
         .where((a) => a.categoryId == cat.id)
         .fold(0, (sum, a) => sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount));
 
+    // Visible Transfers
     double outgoingTransfers = _transfers
-        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == cat.id)
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == cat.id && !t.isHidden)
         .fold(0.0, (sum, t) => sum + t.amount);
     
     double incomingTransfers = _transfers
-        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == cat.id)
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == cat.id && !t.isHidden)
         .fold(0.0, (sum, t) => sum + t.amount);
+
+    // Dissolved (Hidden) Transfers mathematically morph into the base 'budget' limit
+    // as requested by user to prevent 'data increasing so much' in transfers logs!
+    double dissolvedOut = _transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == cat.id && t.isHidden)
+        .fold(0.0, (sum, t) => sum + t.amount);
+    
+    double dissolvedIn = _transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == cat.id && t.isHidden)
+        .fold(0.0, (sum, t) => sum + t.amount);
+
+    budget = budget + dissolvedIn - dissolvedOut;
 
     return {
       'budget': budget,
