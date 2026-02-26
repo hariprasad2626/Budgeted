@@ -314,7 +314,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
                 final isDirect = t.costCenterId == activeCenter.id;
                 final isSource = t.fromCategoryId != null && provider.categories.any((c) => c.id == t.fromCategoryId);
                 final isDest = t.toCategoryId != null && provider.categories.any((c) => c.id == t.toCategoryId);
-                return (isDirect || isSource || isDest) && t.amount != 0;
+                return (isDirect || isSource || isDest) && t.amount != 0 && !t.isHidden;
               }).expand((t) {
                 if (t.type == TransferType.TO_PERSONAL) {
                   // Determine source budget type for the advance
@@ -1003,6 +1003,16 @@ class _LedgerScreenState extends State<LedgerScreen> {
             },
             child: const Text('Edit'),
           ),
+          if (type == 'Transfer' || type == 'Internal Transfer')
+            TextButton(
+              onPressed: () async {
+                final service = FirestoreService();
+                final transfer = (item as FundTransfer).copyWith(isHidden: true);
+                await service.updateFundTransfer(transfer);
+                if (context.mounted) Navigator.pop(context);
+              },
+              child: const Text('Dissolve', style: TextStyle(color: Colors.orange)),
+            ),
           TextButton(
             onPressed: () => _confirmDelete(context, item.id, type),
             child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),

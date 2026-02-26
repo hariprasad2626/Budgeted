@@ -14,6 +14,7 @@ class FundTransfer {
   final String? fromCategoryId;
   final String? toCategoryId; // If null, it can mean "Unallocated" (Wallet)
   final String? targetMonth; // Format: yyyy-MM
+  final bool isHidden;
   
   FundTransfer({
     required this.id,
@@ -25,6 +26,7 @@ class FundTransfer {
     this.fromCategoryId,
     this.toCategoryId,
     this.targetMonth,
+    this.isHidden = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -37,6 +39,7 @@ class FundTransfer {
       'fromCategoryId': fromCategoryId,
       'toCategoryId': toCategoryId,
       'targetMonth': targetMonth,
+      'isHidden': isHidden,
     };
   }
 
@@ -64,6 +67,33 @@ class FundTransfer {
       fromCategoryId: map['fromCategoryId'],
       toCategoryId: map['toCategoryId'],
       targetMonth: map['targetMonth'],
+      isHidden: map['isHidden'] ?? false,
+    );
+  }
+
+  FundTransfer copyWith({
+    String? id,
+    String? costCenterId,
+    double? amount,
+    DateTime? date,
+    String? remarks,
+    TransferType? type,
+    String? fromCategoryId,
+    String? toCategoryId,
+    String? targetMonth,
+    bool? isHidden,
+  }) {
+    return FundTransfer(
+      id: id ?? this.id,
+      costCenterId: costCenterId ?? this.costCenterId,
+      amount: amount ?? this.amount,
+      date: date ?? this.date,
+      remarks: remarks ?? this.remarks,
+      type: type ?? this.type,
+      fromCategoryId: fromCategoryId ?? this.fromCategoryId,
+      toCategoryId: toCategoryId ?? this.toCategoryId,
+      targetMonth: targetMonth ?? this.targetMonth,
+      isHidden: isHidden ?? this.isHidden,
     );
   }
 }
