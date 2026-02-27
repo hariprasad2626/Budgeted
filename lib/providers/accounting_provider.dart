@@ -268,25 +268,19 @@ class AccountingProvider with ChangeNotifier {
   // --- Balance Calculations ---
 
   double get personalBalance {
-    double totalBalance = 0;
-    final Set<String> ccIds = {};
-    ccIds.addAll(_transfers.where((t) => t.type == TransferType.TO_PERSONAL).map((t) => t.costCenterId));
+    double ccTransfers = _transfers
+        .where((t) => t.type == TransferType.TO_PERSONAL)
+        .fold(0.0, (sum, t) => sum + t.amount);
+    
+    double ccExpenses = _allExpenses
+        .where((e) => e.moneySource == MoneySource.PERSONAL)
+        .fold(0.0, (sum, e) => sum + e.amount);
 
-    for (String ccId in ccIds) {
-      double ccTransfers = _transfers
-          .where((t) => t.costCenterId == ccId && t.type == TransferType.TO_PERSONAL)
-          .fold(0.0, (sum, t) => sum + t.amount);
-      
-      double ccExpenses = _allExpenses
-          .where((e) => e.costCenterId == ccId && e.moneySource == MoneySource.PERSONAL)
-          .fold(0.0, (sum, e) => sum + e.amount);
+    double ccSettled = _allExpenses
+        .where((e) => e.moneySource == MoneySource.PERSONAL && e.isSettled && !e.settledAgainstAdvance)
+        .fold(0.0, (sum, e) => sum + e.amount);
 
-      double ccSettled = _allExpenses
-          .where((e) => e.costCenterId == ccId && e.moneySource == MoneySource.PERSONAL && e.isSettled && !e.settledAgainstAdvance)
-          .fold(0.0, (sum, e) => sum + e.amount);
-
-      totalBalance += (ccTransfers + ccSettled - ccExpenses);
-    }
+    double totalBalance = ccTransfers + ccSettled - ccExpenses;
 
     double debits = _adjustments.where((a) => a.type == AdjustmentType.DEBIT).fold(0, (sum, a) => sum + a.amount);
     double credits = _adjustments.where((a) => a.type == AdjustmentType.CREDIT).fold(0, (sum, a) => sum + a.amount);
