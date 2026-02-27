@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.13+67';
+  static const String appVersion = '1.1.14+68';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -103,47 +103,12 @@ class AccountingProvider with ChangeNotifier {
 
   Future<void> _loadCache() async {
     _activeCostCenterId = await CacheService.loadValue('activeCostCenterId');
-
-    final costCenters = await CacheService.loadList('costCenters', CostCenter.fromMap);
-    if (costCenters != null) _costCenters = costCenters.cast<CostCenter>();
-
-    final transfers = await CacheService.loadList('transfers', FundTransfer.fromMap);
-    if (transfers != null) _transfers = transfers.cast<FundTransfer>();
-
-    final adjustments = await CacheService.loadList('adjustments', PersonalAdjustment.fromMap);
-    if (adjustments != null) _adjustments = adjustments.cast<PersonalAdjustment>();
-
-    final allExpenses = await CacheService.loadList('allExpenses', Expense.fromMap);
-    if (allExpenses != null) _allExpenses = allExpenses.cast<Expense>();
-
-    final fixedAmounts = await CacheService.loadList('fixedAmounts', FixedAmount.fromMap);
-    if (fixedAmounts != null) _fixedAmounts = fixedAmounts.cast<FixedAmount>();
-
     final realBalanceVal = await CacheService.loadValue('realBalance');
     if (realBalanceVal != null) _realBalance = double.tryParse(realBalanceVal) ?? 0;
-
     if (_activeCostCenterId != null) {
-      final categories = await CacheService.loadList('categories_$_activeCostCenterId', BudgetCategory.fromMap);
-      if (categories != null) _categories = categories.cast<BudgetCategory>();
-
-      final allocations = await CacheService.loadList('allocations_$_activeCostCenterId', BudgetAllocation.fromMap);
-      if (allocations != null) _allocations = allocations.cast<BudgetAllocation>();
-
-      final donations = await CacheService.loadList('donations_$_activeCostCenterId', Donation.fromMap);
-      if (donations != null) _donations = donations.cast<Donation>();
-
-      final centerAdjustments = await CacheService.loadList('centerAdjustments_$_activeCostCenterId', CostCenterAdjustment.fromMap);
-      if (centerAdjustments != null) _centerAdjustments = centerAdjustments.cast<CostCenterAdjustment>();
-
-      final budgetPeriods = await CacheService.loadList('budgetPeriods_$_activeCostCenterId', BudgetPeriod.fromMap);
-      if (budgetPeriods != null) _budgetPeriods = budgetPeriods.cast<BudgetPeriod>();
-
       final centerRealValue = await CacheService.loadValue('centerRealBalance_$_activeCostCenterId');
       if (centerRealValue != null) _costCenterRealBalance = double.tryParse(centerRealValue) ?? 0;
-      
-      _expenses = _allExpenses.where((e) => e.costCenterId == _activeCostCenterId).toList();
     }
-
     notifyListeners();
   }
 
