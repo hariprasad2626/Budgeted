@@ -18,6 +18,8 @@ import '../models/cost_center_adjustment.dart';
 import 'transaction_history_screen.dart';
 import '../services/update_service.dart';
 import 'data_cleanup_screen.dart';
+import '../services/update_service_stub.dart'
+    if (dart.library.html) '../services/update_service_web.dart' as platform;
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -577,11 +579,19 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             }
           ),
           ListTile(
+            leading: const Icon(Icons.refresh, color: Colors.orangeAccent),
+            title: const Text('Force Refresh & Fix Icons'),
+            subtitle: const Text('Clears browser cache and reloads', style: TextStyle(fontSize: 10)),
+            onTap: () {
+              Navigator.pop(context);
+              platform.reloadPage();
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.system_update, color: Colors.blueAccent),
             title: const Text('Check for Updates'),
             onTap: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Checking for updates...')));
               UpdateService.checkForUpdate(context, manual: true);
             },
           ),
