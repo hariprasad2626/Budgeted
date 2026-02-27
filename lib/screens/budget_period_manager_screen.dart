@@ -634,21 +634,21 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    Column(
-                      children: [
-                        const Text('Adjusted PME Limit', style: TextStyle(color: Colors.white70)),
-                        Text('₹${NumberFormat('#,##,###').format(totalPme)}',
-                          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    Container(width: 1, height: 40, color: Colors.white30),
-                    Column(
-                      children: [
-                        const Text('Adjusted OTE Limit', style: TextStyle(color: Colors.white70)),
-                        Text('₹${NumberFormat('#,##,###').format(totalOte)}',
-                          style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
+                      Column(
+                        children: [
+                          const Text('Total PME Budget', style: TextStyle(color: Colors.white70)),
+                          Text('₹${NumberFormat('#,##,###').format(totalPme)}',
+                            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      Container(width: 1, height: 40, color: Colors.white30),
+                      Column(
+                        children: [
+                          const Text('Total OTE Budget', style: TextStyle(color: Colors.white70)),
+                          Text('₹${NumberFormat('#,##,###').format(totalOte)}',
+                            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
                   ],
                 ),
               ),
@@ -716,6 +716,7 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
                                 _buildSummaryRow('PME Monthly Average', period.defaultPmeAmount),
                                 _buildSummaryRow('PME Total (Period)', period.totalPmeBudget, isBold: true),
                                 _buildSummaryRow('OTE Budget', period.oteAmount, isBold: true),
+                                /* 
                                 const Divider(),
                                 const Align(
                                   alignment: Alignment.centerLeft,
@@ -744,6 +745,7 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
                                     onTap: () => _editMonthAmountFromList(period, month, baseAmount),
                                   );
                                 }).toList(),
+                                */
                                 if (period.remarks.isNotEmpty)
                                   Padding(
                                     padding: const EdgeInsets.only(top: 8),

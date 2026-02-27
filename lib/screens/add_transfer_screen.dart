@@ -381,10 +381,10 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
 
       if (amount > available) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Insufficient balance! Available: ₹${available.toStringAsFixed(0)}'),
-          backgroundColor: Colors.redAccent,
+          content: Text('Warning: Insufficient balance! Available: ₹${available.toStringAsFixed(0)}. Proceeding anyway.'),
+          backgroundColor: Colors.orange,
         ));
-        return;
+        // return; // Removed return to allow proceeding
       }
     }
 

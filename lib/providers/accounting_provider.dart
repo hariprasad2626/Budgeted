@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.16+70';
+  static const String appVersion = '1.1.17+71';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -526,9 +526,11 @@ class AccountingProvider with ChangeNotifier {
     if (isToWallet) {
       final cat = _categories.firstWhere((c) => c.id == categoryId, orElse: () => throw Exception('Category not found'));
       final status = getCategoryStatus(cat);
+      /* 
       if (status['remaining']! < amount) {
         throw Exception('Insufficient category balance. You can only transfer up to ₹${status['remaining']!.toStringAsFixed(2)} to wallet.');
       }
+      */
     }
 
     final transfer = FundTransfer(

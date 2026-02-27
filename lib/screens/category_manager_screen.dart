@@ -961,14 +961,12 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                     }
 
                     if (totalAllocated > limits) {
-                      // Strict Rule: Block update
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Strict Rule: Total ${budgetType.name} allocation (₹$totalAllocated) exceeds available budget (₹$limits)!'),
-                          backgroundColor: Colors.red,
+                          content: Text('Warning: Total ${budgetType.name} allocation (₹$totalAllocated) exceeds available budget (₹$limits). Proceeding anyway.'),
+                          backgroundColor: Colors.orange,
                         )
                       );
-                      return; 
                     }
 
                     final updated = BudgetCategory(
@@ -1070,11 +1068,10 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                     if (totalAllocated > limits) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Strict Rule: Total ${budgetType.name} allocation (₹$totalAllocated) exceeds available budget (₹$limits)!'),
-                          backgroundColor: Colors.red,
+                          content: Text('Warning: Total ${budgetType.name} allocation (₹$totalAllocated) exceeds available budget (₹$limits). Proceeding anyway.'),
+                          backgroundColor: Colors.orange,
                         )
                       );
-                      return; 
                     }
 
                     final cat = BudgetCategory(
