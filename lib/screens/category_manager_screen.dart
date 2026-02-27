@@ -97,14 +97,20 @@ class CategoryManagerScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.category_outlined, size: 64, color: Colors.grey.withOpacity(0.5)),
+            Icon(Icons.category_outlined, size: 84, color: Colors.teal.withOpacity(0.1)),
             const SizedBox(height: 16),
-            Text('No ${type.name} categories found', style: const TextStyle(color: Colors.grey, fontSize: 16)),
-            const SizedBox(height: 8),
+            Text('No ${type.name} categories found', style: const TextStyle(color: Colors.grey, fontSize: 16, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: () => _showAddDialog(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal.shade700,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
               icon: const Icon(Icons.add),
-              label: const Text('Add Your First Category'),
+              label: const Text('Create First Category'),
             )
           ],
         ),
@@ -114,30 +120,16 @@ class CategoryManagerScreen extends StatelessWidget {
     // Unified summary calculations for the whole Project
     double totalBudget = 0;
     double totalSpent = 0;
-    double totalWalletSurplus = 0;
+    double totalActiveLimit = 0;
 
     for (var cat in provider.categories) {
-      if (!cat.isActive) continue;
+      if (!cat.isActive || cat.budgetType != type) continue;
       final status = provider.getCategoryStatus(cat);
-      totalBudget += status['total_limit'] ?? 0;
+      totalBudget += status['budget'] ?? 0;
       totalSpent += status['spent'] ?? 0;
-
-      final outgoingToWallet = provider.transfers
-          .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == cat.id && t.toCategoryId == null)
-          .fold(0.0, (sum, t) => sum + t.amount);
-
-      final incomingFromWallet = provider.transfers
-          .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == cat.id && t.fromCategoryId == null)
-          .fold(0.0, (sum, t) => sum + t.amount);
-
-      // Only count surplus logic for the categories that would be in this tab for the surplus row?
-      // No, let's just make the whole header Project-level data.
-      totalWalletSurplus += (outgoingToWallet - incomingFromWallet);
+      totalActiveLimit += status['total_limit'] ?? 0;
     }
 
-    final unallocatedSection = provider.walletBalance; 
-
-    // grouping
     final Map<String, List<BudgetCategory>> grouped = {};
     for (var item in items) {
       grouped.putIfAbsent(item.category, () => []).add(item);
@@ -145,15 +137,16 @@ class CategoryManagerScreen extends StatelessWidget {
     final sortedKeys = grouped.keys.toList()..sort();
 
     return CustomScrollView(
+      physics: const BouncingScrollPhysics(),
       slivers: [
-        // --- Dashboard Header Section ---
+        // --- Premium Dashboard Header Section ---
         SliverToBoxAdapter(
           child: Container(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: provider.isDarkMode 
-                  ? [Colors.teal.shade900, Colors.black] 
+                  ? [Colors.teal.shade900.withOpacity(0.2), Colors.black.withOpacity(0)] 
                   : [Colors.teal.shade50, Colors.white],
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
@@ -162,81 +155,68 @@ class CategoryManagerScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'PROJECT BUDGET DASHBOARD'.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 12, 
-                    fontWeight: FontWeight.bold, 
-                    letterSpacing: 1.5,
-                    color: Colors.teal.shade400
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${type.name} PERFORMANCE',
+                          style: TextStyle(
+                            fontSize: 11, 
+                            fontWeight: FontWeight.w800, 
+                            letterSpacing: 2.0,
+                            color: Colors.teal.shade400
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '₹${(totalActiveLimit - totalSpent).toStringAsFixed(0)} Remaining',
+                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    _buildCircularProgress(context, totalSpent, totalActiveLimit),
+                  ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
                 
-                // Primary Metric Row: Limit and Spent
+                // Metric Row
                 Row(
                   children: [
                     Expanded(
-                      child: _buildMetricCard(
+                      child: _buildMetricTile(
                         context, 
-                        'Project Limit', 
-                        '₹${totalBudget.toStringAsFixed(0)}', 
-                        Icons.account_balance_wallet, 
+                        'Total Limit', 
+                        '₹${totalActiveLimit.toStringAsFixed(0)}', 
+                        Icons.shield_outlined, 
                         Colors.blue,
-                        subtitle: 'PME + OTE Categories',
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _buildMetricCard(
+                      child: _buildMetricTile(
                         context, 
                         'Total Spent', 
                         '₹${totalSpent.toStringAsFixed(0)}', 
-                        Icons.shopping_cart, 
+                        Icons.account_balance_wallet_outlined, 
                         Colors.orange,
-                        percentage: totalBudget > 0 ? (totalSpent / totalBudget) : 0,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                
-                // Secondary Metric Row: Remaining and Unallocated
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildMetricCard(
-                        context, 
-                        'Pending Pool', 
-                        '₹${(totalBudget - totalSpent).toStringAsFixed(0)}', 
-                        Icons.hourglass_empty, 
-                        Colors.green,
-                        subtitle: 'Funds remaining',
+                        trend: totalActiveLimit > 0 ? (totalSpent / totalActiveLimit) : 0,
                       ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: _buildMetricCard(
+                      child: _buildMetricTile(
                         context, 
-                        'Unallocated', 
-                        '₹${unallocatedSection.toStringAsFixed(0)}', 
-                        Icons.add_to_photos, 
+                        'Master Wallet', 
+                        '₹${provider.walletBalance.toStringAsFixed(0)}', 
+                        Icons.savings_outlined, 
                         Colors.purple,
-                        subtitle: 'Available to distribute',
                       ),
                     ),
                   ],
                 ),
-                
-                if (totalWalletSurplus.abs() > 0) ...[
-                  const SizedBox(height: 8),
-                  _buildSlimMetricRow(
-                    context, 
-                    totalWalletSurplus < 0 ? 'Contribution from Wallet' : 'Contribution to Wallet', 
-                    '₹${totalWalletSurplus.abs().toStringAsFixed(0)}',
-                    totalWalletSurplus < 0 ? Colors.green : Colors.orange,
-                  ),
-                ],
               ],
             ),
           ),
@@ -249,24 +229,26 @@ class CategoryManagerScreen extends StatelessWidget {
             slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+                  padding: const EdgeInsets.fromLTRB(24, 28, 20, 16),
                   child: Row(
                     children: [
+                      Container(
+                        width: 4,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: Colors.teal.shade400,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
                       Text(
                         mainCategory,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, letterSpacing: 0.5),
                       ),
                       const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.teal.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '${subItems.length}',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal),
-                        ),
+                      Text(
+                        '(${subItems.length})',
+                        style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
                       ),
                     ],
                   ),
@@ -276,7 +258,7 @@ class CategoryManagerScreen extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (context, index) => _buildExpandableCategoryCard(context, provider, subItems[index]),
+                    (context, index) => _buildEnhancedCategoryCard(context, provider, subItems[index]),
                     childCount: subItems.length,
                   ),
                 ),
@@ -284,67 +266,78 @@ class CategoryManagerScreen extends StatelessWidget {
             ],
           );
         }),
-        const SliverToBoxAdapter(child: SizedBox(height: 100)),
+        const SliverToBoxAdapter(child: SizedBox(height: 120)),
       ],
     );
   }
 
-  Widget _buildMetricCard(BuildContext context, String title, String value, IconData icon, Color color, {double? percentage, String? subtitle}) {
+  Widget _buildCircularProgress(BuildContext context, double spent, double total) {
+    double progress = total > 0 ? (spent / total).clamp(0.0, 1.0) : 0.0;
+    Color color = progress > 0.9 ? Colors.red : (progress > 0.7 ? Colors.orange : Colors.teal);
+    
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        SizedBox(
+          width: 54,
+          height: 54,
+          child: CircularProgressIndicator(
+            value: progress,
+            strokeWidth: 6,
+            backgroundColor: Colors.teal.withOpacity(0.1),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+            strokeCap: StrokeCap.round,
+          ),
+        ),
+        Text(
+          '${(progress * 100).toStringAsFixed(0)}%',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMetricTile(BuildContext context, String title, String value, IconData icon, Color color, {double? trend}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.05) : Colors.white,
+        color: isDark ? Colors.white.withOpacity(0.04) : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100),
+        boxShadow: isDark ? [] : [
+          BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 4))
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(icon, color: color, size: 20),
-              if (percentage != null)
-                Text(
-                  '${(percentage * 100).toStringAsFixed(0)}%',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color),
-                ),
-            ],
-          ),
+          Icon(icon, color: color, size: 18),
           const SizedBox(height: 12),
-          Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-          Text(title, style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
-          if (subtitle != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(subtitle, style: TextStyle(fontSize: 9, color: color.withOpacity(0.8), fontStyle: FontStyle.italic)),
-            ),
+          Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 2),
+          Text(title, style: TextStyle(fontSize: 9, color: Colors.grey.shade500, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
+          if (trend != null)
+             Container(
+               margin: const EdgeInsets.only(top: 8),
+               height: 3,
+               width: 30,
+               decoration: BoxDecoration(
+                 color: color.withOpacity(0.2),
+                 borderRadius: BorderRadius.circular(2),
+               ),
+               child: FractionallySizedBox(
+                 alignment: Alignment.centerLeft,
+                 widthFactor: trend.clamp(0.0, 1.0),
+                 child: Container(decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+               ),
+             ),
         ],
       ),
     );
   }
 
-  Widget _buildSlimMetricRow(BuildContext context, String label, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.1)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500)),
-          Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildExpandableCategoryCard(BuildContext context, AccountingProvider provider, BudgetCategory cat) {
+  Widget _buildEnhancedCategoryCard(BuildContext context, AccountingProvider provider, BudgetCategory cat) {
     final status = provider.getCategoryStatus(cat);
     final double spent = status['spent']!;
     final double totalLimit = status['total_limit']!;
@@ -353,128 +346,203 @@ class CategoryManagerScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: isDark ? Colors.white.withOpacity(0.03) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isDark ? Colors.white10 : Colors.grey.shade200),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: isDark ? Colors.white.withOpacity(0.06) : Colors.grey.shade200),
+        boxShadow: isDark ? [] : [
+          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 12, offset: const Offset(0, 6))
+        ],
       ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          title: Text(
-            cat.subCategory,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-          ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (cat.remarks.isNotEmpty)
-                Text(cat.remarks, style: TextStyle(fontSize: 11, color: Colors.grey.shade500), maxLines: 1, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: LinearProgressIndicator(
-                        value: progress,
-                        backgroundColor: isDark ? Colors.white10 : Colors.grey.shade100,
-                        valueColor: AlwaysStoppedAnimation<Color>(isOver ? Colors.red : Colors.teal),
-                        minHeight: 4,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    '₹${(totalLimit - spent).abs().toStringAsFixed(0)} ${(totalLimit - spent) < 0 ? 'Over' : 'Left'}',
-                    style: TextStyle(
-                      fontSize: 11, 
-                      fontWeight: FontWeight.bold,
-                      color: (totalLimit - spent) < 0 ? Colors.red : Colors.green
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          trailing: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('₹${spent.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              Text('of ₹${totalLimit.toStringAsFixed(0)}', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
-            ],
-          ),
-          children: [
-            const Divider(height: 1, indent: 16, endIndent: 16),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  // Action Grid
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 4,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 1.1,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+            title: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildActionItem(context, 'Withdraw', Icons.arrow_upward, Colors.orange, () => _showTransferDialog(context, cat, true)),
-                      _buildActionItem(context, 'Top Up', Icons.arrow_downward, Colors.green, () => _showTransferDialog(context, cat, false)),
-                      _buildActionItem(context, 'History', Icons.history, Colors.blue, () => _showTransactions(context, cat)),
-                      _buildActionItem(context, 'More', Icons.more_horiz, Colors.grey, () => _showMoreActions(context, cat)),
+                      Text(
+                        cat.subCategory,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
+                      ),
+                      if (cat.remarks.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            cat.remarks, 
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontWeight: FontWeight.w400),
+                            maxLines: 1, 
+                            overflow: TextOverflow.ellipsis
+                          ),
+                        ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  
-                  // Detailed Stats
-                  _buildDetailRow('Base Budget', '₹${status['budget']?.toStringAsFixed(0)}'),
-                  _buildDetailRow('Donations', '₹${status['donations']?.toStringAsFixed(0)}', color: Colors.green),
-                  _buildDetailRow('Adjustments', '₹${status['adjustments']?.toStringAsFixed(0)}', color: Colors.blue),
-                  _buildDetailRow('Transfers (Net)', '₹${status['transfers']?.toStringAsFixed(0)}', color: Colors.purple),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 16),
+                Stack(
+                  children: [
+                    Container(
+                      height: 8,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    FractionallySizedBox(
+                      widthFactor: progress,
+                      child: Container(
+                        height: 8,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: isOver 
+                              ? [Colors.red.shade400, Colors.red.shade700] 
+                              : [Colors.teal.shade300, Colors.teal.shade600]
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (isOver ? Colors.red : Colors.teal).withOpacity(0.3),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            )
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '₹${spent.toStringAsFixed(0)} / ₹${totalLimit.toStringAsFixed(0)}',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isDark ? Colors.grey : Colors.grey.shade700),
+                    ),
+                    Text(
+                      isOver ? '₹${(spent - totalLimit).toStringAsFixed(0)} Over' : '₹${(totalLimit - spent).toStringAsFixed(0)} Left',
+                      style: TextStyle(
+                        fontSize: 12, 
+                        fontWeight: FontWeight.w800,
+                        color: isOver ? Colors.redAccent : Colors.teal.shade400,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            trailing: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.keyboard_arrow_down, size: 20, color: Colors.teal.shade400),
+            ),
+            children: [
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                child: Column(
+                  children: [
+                    const Divider(height: 24),
+                    // Action Control Center
+                    Row(
+                      children: [
+                         _buildModernAction(context, 'Withdraw', Icons.outbox_rounded, Colors.orange, () => _showTransferDialog(context, cat, true)),
+                         const SizedBox(width: 8),
+                         _buildModernAction(context, 'Top Up', Icons.add_business_rounded, Colors.green, () => _showTransferDialog(context, cat, false)),
+                         const SizedBox(width: 8),
+                         _buildModernAction(context, 'History', Icons.auto_graph_rounded, Colors.blue, () => _showTransactions(context, cat)),
+                         const SizedBox(width: 8),
+                         _buildModernAction(context, 'Settings', Icons.tune_rounded, Colors.grey, () => _showMoreActions(context, cat)),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    // Glassmorphic Detail Panel
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withOpacity(0.02) : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: isDark ? Colors.white.withOpacity(0.04) : Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        children: [
+                          _buildDetailRow('Monthly Allotment', '₹${status['budget']?.toStringAsFixed(0)}', icon: Icons.calendar_month),
+                          _buildDetailRow('Active Duration', '${provider.getElapsedMonthsForCategory(cat)} Months', icon: Icons.timer_outlined),
+                          _buildDetailRow('External Donations', '₹${status['donations']?.toStringAsFixed(0)}', icon: Icons.volunteer_activism, color: Colors.green),
+                          _buildDetailRow('Net Transfers', '₹${status['transfers']?.toStringAsFixed(0)}', icon: Icons.swap_horiz, color: Colors.purple),
+                          _buildDetailRow('Balance Adjustments', '₹${status['adjustments']?.toStringAsFixed(0)}', icon: Icons.edit_note, color: Colors.blue),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildActionItem(BuildContext context, String label, IconData icon, Color color, VoidCallback onTap) {
+  Widget _buildModernAction(BuildContext context, String label, IconData icon, Color color, VoidCallback onTap) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: color, size: 20),
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withOpacity(0.15)),
           ),
-          const SizedBox(height: 6),
-          Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: isDark ? Colors.white70 : Colors.black87)),
-        ],
+          child: Column(
+            children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(height: 6),
+              Text(
+                label, 
+                style: TextStyle(
+                  fontSize: 10, 
+                  fontWeight: FontWeight.w700, 
+                  letterSpacing: 0.2,
+                  color: isDark ? Colors.white70 : Colors.black87
+                )
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildDetailRow(String label, String value, {Color? color}) {
+  Widget _buildDetailRow(String label, String value, {IconData? icon, Color? color}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-          Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: Colors.grey.shade500),
+            const SizedBox(width: 8),
+          ],
+          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
+          const Spacer(),
+          Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
         ],
       ),
     );
