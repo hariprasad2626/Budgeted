@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.8+36';
+  static const String appVersion = '1.1.11+40';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -264,12 +264,12 @@ class AccountingProvider with ChangeNotifier {
   double get personalBalance {
     double totalBalance = 0;
     final Set<String> ccIds = {};
-    ccIds.addAll(_transfers.where((t) => t.type == TransferType.TO_PERSONAL).map((t) => t.costCenterId));
+    ccIds.addAll(_transfers.where((t) => t.type == TransferType.TO_PERSONAL && !t.isHidden).map((t) => t.costCenterId));
     ccIds.addAll(_allExpenses.where((e) => e.moneySource == MoneySource.PERSONAL).map((e) => e.costCenterId));
     
     for (String ccId in ccIds) {
       double ccTransfers = _transfers
-          .where((t) => t.costCenterId == ccId && t.type == TransferType.TO_PERSONAL)
+          .where((t) => t.costCenterId == ccId && t.type == TransferType.TO_PERSONAL && !t.isHidden)
           .fold(0.0, (sum, t) => sum + t.amount);
       
       double ccExpenses = _allExpenses
@@ -302,13 +302,13 @@ class AccountingProvider with ChangeNotifier {
 
   double get pmeBalance {
     return _categories
-        .where((c) => c.budgetType == BudgetType.PME)
+        .where((c) => c.budgetType == BudgetType.PME && c.isActive)
         .fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['remaining']!);
   }
 
   double get oteBalance {
     return _categories
-        .where((c) => c.budgetType == BudgetType.OTE)
+        .where((c) => c.budgetType == BudgetType.OTE && c.isActive)
         .fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['remaining']!);
   }
 
@@ -339,7 +339,17 @@ class AccountingProvider with ChangeNotifier {
         .where((c) => c.budgetType == BudgetType.PME && c.isActive)
         .fold(0.0, (sum, cat) => sum + (cat.targetAmount * getElapsedMonthsForCategory(cat)));
 
-    return totalPmePool - distributedPme;
+    double pmeTransfersToCategories = _transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == null && t.toCategoryId != null && !t.isHidden)
+        .where((t) => getBudgetTypeForCategory(t.toCategoryId!) == BudgetType.PME)
+        .fold(0.0, (sum, t) => sum + t.amount);
+
+    double pmeTransfersFromCategories = _transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == null && t.fromCategoryId != null && !t.isHidden)
+        .where((t) => getBudgetTypeForCategory(t.fromCategoryId!) == BudgetType.PME)
+        .fold(0.0, (sum, t) => sum + t.amount);
+
+    return totalPmePool - distributedPme - pmeTransfersToCategories + pmeTransfersFromCategories;
   }
 
   double get unallocatedOteBudget {
@@ -352,7 +362,17 @@ class AccountingProvider with ChangeNotifier {
         .where((c) => c.budgetType == BudgetType.OTE && c.isActive)
         .fold(0.0, (sum, cat) => sum + cat.targetAmount);
 
-    return totalOtePool - distributedOte;
+    double oteTransfersToCategories = _transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == null && t.toCategoryId != null && !t.isHidden)
+        .where((t) => getBudgetTypeForCategory(t.toCategoryId!) == BudgetType.OTE)
+        .fold(0.0, (sum, t) => sum + t.amount);
+
+    double oteTransfersFromCategories = _transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == null && t.fromCategoryId != null && !t.isHidden)
+        .where((t) => getBudgetTypeForCategory(t.fromCategoryId!) == BudgetType.OTE)
+        .fold(0.0, (sum, t) => sum + t.amount);
+
+    return totalOtePool - distributedOte - oteTransfersToCategories + oteTransfersFromCategories;
   }
 
   double get costCenterBudgetBalance {
@@ -379,7 +399,7 @@ class AccountingProvider with ChangeNotifier {
     double adjustments = _getAdjustmentTotal(BudgetType.PME) + _getAdjustmentTotal(BudgetType.OTE);
 
     double totalAdvancesFromCenter = _transfers
-        .where((t) => t.costCenterId == center.id && t.type == TransferType.TO_PERSONAL)
+        .where((t) => t.costCenterId == center.id && t.type == TransferType.TO_PERSONAL && !t.isHidden)
         .fold<double>(0.0, (sum, t) => sum + t.amount);
 
     return totalBaseline + totalDonations - totalExpenses + adjustments - totalAdvancesFromCenter;
@@ -390,7 +410,7 @@ class AccountingProvider with ChangeNotifier {
     if (center == null) return 0;
 
     double totalAdvances = _transfers
-        .where((t) => t.costCenterId == center.id && t.type == TransferType.TO_PERSONAL)
+        .where((t) => t.costCenterId == center.id && t.type == TransferType.TO_PERSONAL && !t.isHidden)
         .fold<double>(0.0, (sum, t) => sum + t.amount);
 
     double settledAgainstAdvance = _expenses
@@ -404,7 +424,7 @@ class AccountingProvider with ChangeNotifier {
   double get walletBalance {
     final center = activeCostCenter;
     if (center == null) return 0;
-    double catBalances = _categories.fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['remaining']!);
+    double catBalances = _categories.where((c) => c.isActive).fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['remaining']!);
     return costCenterBudgetBalance - catBalances;
   }
 
@@ -434,18 +454,6 @@ class AccountingProvider with ChangeNotifier {
     double incomingTransfers = _transfers
         .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == cat.id && !t.isHidden)
         .fold(0.0, (sum, t) => sum + t.amount);
-
-    // Dissolved (Hidden) Transfers mathematically morph into the base 'budget' limit
-    // as requested by user to prevent 'data increasing so much' in transfers logs!
-    double dissolvedOut = _transfers
-        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == cat.id && t.isHidden)
-        .fold(0.0, (sum, t) => sum + t.amount);
-    
-    double dissolvedIn = _transfers
-        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == cat.id && t.isHidden)
-        .fold(0.0, (sum, t) => sum + t.amount);
-
-    budget = budget + dissolvedIn - dissolvedOut;
 
     return {
       'budget': budget,
@@ -566,7 +574,7 @@ class AccountingProvider with ChangeNotifier {
     }
 
     for (var transfer in _transfers) {
-      if (transfer.type == TransferType.CATEGORY_TO_CATEGORY && transfer.targetMonth != null) {
+      if (transfer.type == TransferType.CATEGORY_TO_CATEGORY && transfer.targetMonth != null && !transfer.isHidden) {
         String month = transfer.targetMonth!;
         metrics.putIfAbsent(month, () => {'pme_budget': 0.0, 'ote_budget': 0.0, 'pme_actual': 0.0, 'ote_actual': 0.0});
         

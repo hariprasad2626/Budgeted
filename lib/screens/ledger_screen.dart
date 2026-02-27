@@ -41,8 +41,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
         final filterMode = ModalRoute.of(context)?.settings.arguments as String? ?? 'ALL_CENTER'; // 'PME', 'OTE', 'WALLET', 'ADVANCE', 'ALL_CENTER'
 
         // Calculate unallocated (Gap) amounts for Wallet view
-        double earmarkedOte = provider.categories.where((c) => c.budgetType == BudgetType.OTE).fold(0.0, (sum, c) => sum + c.targetAmount);
-        double earmarkedPmeMonthly = provider.categories.where((c) => c.budgetType == BudgetType.PME).fold(0.0, (sum, c) => sum + c.targetAmount);
+        double earmarkedOte = provider.categories.where((c) => c.budgetType == BudgetType.OTE && c.isActive).fold(0.0, (sum, c) => sum + c.targetAmount);
 
         // Synthetic Budget Entries
         List<Map<String, dynamic>> budgetEntries = [];
@@ -95,7 +94,10 @@ class _LedgerScreenState extends State<LedgerScreen> {
             }
 
             // 2. Unallocated PME Surplus (Debit from PME, Credit to Wallet)
-            double pmeSurplus = monthlyBudgeted - earmarkedPmeMonthly;
+            double monthlyEarmarkedPme = provider.categories
+                .where((c) => c.budgetType == BudgetType.PME && c.isActive && provider.isMonthOnOrAfterCategoryCreation(m, c.createdAt))
+                .fold(0.0, (sum, c) => sum + c.targetAmount);
+            double pmeSurplus = monthlyBudgeted - monthlyEarmarkedPme;
             if (pmeSurplus > 0) {
               if (filterMode == 'WALLET') {
                 budgetEntries.add({
