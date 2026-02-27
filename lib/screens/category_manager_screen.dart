@@ -201,7 +201,7 @@ class CategoryManagerScreen extends StatelessWidget {
                         context, 
                         'Total Limit', 
                         '₹${totalActiveLimit.toStringAsFixed(0)}', 
-                        Icons.assignment, 
+                        Icons.article, 
                         Colors.blue,
                       ),
                     ),
@@ -477,9 +477,9 @@ class CategoryManagerScreen extends StatelessWidget {
                     // Action Control Center
                     Row(
                       children: [
-                         _buildModernAction(context, 'Withdraw', Icons.arrow_circle_up, Colors.orange, () => _openInternalTransfer(context, cat, true)),
+                         _buildModernAction(context, 'Withdraw', Icons.arrow_upward, Colors.orange, () => _openInternalTransfer(context, cat, true)),
                          const SizedBox(width: 8),
-                         _buildModernAction(context, 'Top Up', Icons.arrow_circle_down, Colors.green, () => _openInternalTransfer(context, cat, false)),
+                         _buildModernAction(context, 'Top Up', Icons.arrow_downward, Colors.green, () => _openInternalTransfer(context, cat, false)),
                          const SizedBox(width: 8),
                          _buildModernAction(context, 'History', Icons.history, Colors.blue, () => _showTransactions(context, cat)),
                          const SizedBox(width: 8),
@@ -497,11 +497,11 @@ class CategoryManagerScreen extends StatelessWidget {
                       ),
                       child: Column(
                         children: [
-                          _buildDetailRow('Monthly Allotment', '₹${status['budget']?.toStringAsFixed(0)}', icon: Icons.calendar_month), // Icon changed to solid
-                          _buildDetailRow('Active Duration', '${provider.getElapsedMonthsForCategory(cat)} Months', icon: Icons.timer), // Icon changed to solid
-                          _buildDetailRow('External Donations', '₹${status['donations']?.toStringAsFixed(0)}', icon: Icons.volunteer_activism, color: Colors.green),
+                          _buildDetailRow('Monthly Allotment', '₹${status['budget']?.toStringAsFixed(0)}', icon: Icons.calendar_today), 
+                          _buildDetailRow('Active Duration', '${provider.getElapsedMonthsForCategory(cat)} Months', icon: Icons.access_time), 
+                          _buildDetailRow('External Donations', '₹${status['donations']?.toStringAsFixed(0)}', icon: Icons.favorite, color: Colors.green),
                           _buildDetailRow('Net Transfers', '₹${status['transfers']?.toStringAsFixed(0)}', icon: Icons.swap_horiz, color: Colors.purple),
-                          _buildDetailRow('Balance Adjustments', '₹${status['adjustments']?.toStringAsFixed(0)}', icon: Icons.edit_note, color: Colors.blue),
+                          _buildDetailRow('Balance Adjustments', '₹${status['adjustments']?.toStringAsFixed(0)}', icon: Icons.edit, color: Colors.blue),
                         ],
                       ),
                     ),
