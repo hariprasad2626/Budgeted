@@ -597,11 +597,25 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
             );
           }
 
-          // Calculate totals
-          double totalPme = provider.budgetPeriods
+          // Calculate Adjusted Totals from Performance Metrics
+          final metrics = provider.getMonthlyPerformanceMetrics();
+          double adjustedPmeTotal = 0;
+          
+          // Sum PME from all months
+          for (var key in metrics.keys) {
+            if (key != 'OTE_GLOBAL') {
+              adjustedPmeTotal += metrics[key]!['pme_budget'] ?? 0;
+            }
+          }
+
+          // Get OTE from global key
+          double adjustedOteTotal = metrics['OTE_GLOBAL']?['ote_budget'] ?? 0;
+
+          // Use raw period totals only if metrics are empty
+          double totalPme = adjustedPmeTotal != 0 ? adjustedPmeTotal : provider.budgetPeriods
               .where((p) => p.isActive)
               .fold(0.0, (sum, p) => sum + p.totalPmeBudget);
-          double totalOte = provider.budgetPeriods
+          double totalOte = adjustedOteTotal != 0 ? adjustedOteTotal : provider.budgetPeriods
               .where((p) => p.isActive)
               .fold(0.0, (sum, p) => sum + p.oteAmount);
 
@@ -622,7 +636,7 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
                   children: [
                     Column(
                       children: [
-                        const Text('Total PME Budget', style: TextStyle(color: Colors.white70)),
+                        const Text('Adjusted PME Limit', style: TextStyle(color: Colors.white70)),
                         Text('₹${NumberFormat('#,##,###').format(totalPme)}',
                           style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                       ],
@@ -630,7 +644,7 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
                     Container(width: 1, height: 40, color: Colors.white30),
                     Column(
                       children: [
-                        const Text('Total OTE Budget', style: TextStyle(color: Colors.white70)),
+                        const Text('Adjusted OTE Limit', style: TextStyle(color: Colors.white70)),
                         Text('₹${NumberFormat('#,##,###').format(totalOte)}',
                           style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                       ],
@@ -708,23 +722,26 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
                                   child: Text('Monthly Adjustments:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                 ),
                                 ...period.getAllMonths().map((month) {
-                                  final amount = period.getPmeForMonth(month);
-                                  final hasOverride = period.monthlyPme.containsKey(month);
+                                  // Show adjusted monthly limit if available
+                                  final baseAmount = period.getPmeForMonth(month);
+                                  final adjustedAmount = metrics[month]?['pme_budget'] ?? baseAmount;
+                                  final hasOverride = period.monthlyPme.containsKey(month) || (adjustedAmount != baseAmount);
+                                  
                                   return ListTile(
                                     dense: true,
                                     visualDensity: VisualDensity.compact,
                                     title: Text(_formatMonth(month), style: const TextStyle(fontSize: 13)),
                                     subtitle: period.monthlyPmeRemarks.containsKey(month)
                                       ? Text(period.monthlyPmeRemarks[month]!, style: const TextStyle(fontSize: 11, color: Colors.orange, fontStyle: FontStyle.italic))
-                                      : null,
+                                      : (adjustedAmount != baseAmount ? const Text('Adjusted via Transfer', style: TextStyle(fontSize: 11, color: Colors.blue, fontStyle: FontStyle.italic)) : null),
                                     trailing: Text(
-                                      '₹${NumberFormat('#,##,###').format(amount)}',
+                                      '₹${NumberFormat('#,##,###').format(adjustedAmount)}',
                                       style: TextStyle(
                                         color: hasOverride ? Colors.orange : null,
                                         fontWeight: hasOverride ? FontWeight.bold : null,
                                       ),
                                     ),
-                                    onTap: () => _editMonthAmountFromList(period, month, amount),
+                                    onTap: () => _editMonthAmountFromList(period, month, baseAmount),
                                   );
                                 }).toList(),
                                 if (period.remarks.isNotEmpty)

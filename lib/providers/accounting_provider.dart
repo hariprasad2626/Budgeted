@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.11+48';
+  static const String appVersion = '1.1.11+49';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -562,44 +562,85 @@ class AccountingProvider with ChangeNotifier {
   Map<String, Map<String, double>> getMonthlyPerformanceMetrics() {
     final Map<String, Map<String, double>> metrics = {};
     for (var period in _budgetPeriods.where((p) => p.isActive)) {
+      // Initialize OTE budget in the 'OTE_TOTAL' pseudo-month or just handle it globally?
+      // For OTE, we'll store it in a special key or just distribute it.
+      // But let's follow the user's need: they want to see the total limit change.
       for (var month in period.getAllMonths()) {
         metrics.putIfAbsent(month, () => {'pme_budget': 0.0, 'ote_budget': 0.0, 'pme_actual': 0.0, 'ote_actual': 0.0});
         metrics[month]!['pme_budget'] = (metrics[month]!['pme_budget'] ?? 0) + period.getPmeForMonth(month);
       }
+      
+      // We'll use 'OTE_GLOBAL' to track OTE budget shifts
+      metrics.putIfAbsent('OTE_GLOBAL', () => {'pme_budget': 0.0, 'ote_budget': 0.0, 'pme_actual': 0.0, 'ote_actual': 0.0});
+      metrics['OTE_GLOBAL']!['ote_budget'] = (metrics['OTE_GLOBAL']!['ote_budget'] ?? 0) + period.oteAmount;
     }
+
     for (var expense in _expenses) {
       if (expense.moneySource == MoneySource.PERSONAL && !expense.isSettled) continue;
       String month = expense.budgetMonth ?? DateFormat('yyyy-MM').format(expense.date);
       metrics.putIfAbsent(month, () => {'pme_budget': 0.0, 'ote_budget': 0.0, 'pme_actual': 0.0, 'ote_actual': 0.0});
+      metrics.putIfAbsent('OTE_GLOBAL', () => {'pme_budget': 0.0, 'ote_budget': 0.0, 'pme_actual': 0.0, 'ote_actual': 0.0});
+
       if (expense.budgetType == BudgetType.PME) {
         metrics[month]!['pme_actual'] = (metrics[month]!['pme_actual'] ?? 0) + expense.amount;
       } else {
         metrics[month]!['ote_actual'] = (metrics[month]!['ote_actual'] ?? 0) + expense.amount;
+        metrics['OTE_GLOBAL']!['ote_actual'] = (metrics['OTE_GLOBAL']!['ote_actual'] ?? 0) + expense.amount;
       }
     }
 
     for (var transfer in _transfers) {
-      if (transfer.type == TransferType.CATEGORY_TO_CATEGORY && transfer.targetMonth != null) {
-        String month = transfer.targetMonth!;
-        metrics.putIfAbsent(month, () => {'pme_budget': 0.0, 'ote_budget': 0.0, 'pme_actual': 0.0, 'ote_actual': 0.0});
+      if (transfer.type == TransferType.CATEGORY_TO_CATEGORY) {
+        String? month = transfer.targetMonth;
         
+        // Handle PME Shifts (Monthly)
+        if (month != null) {
+          metrics.putIfAbsent(month, () => {'pme_budget': 0.0, 'ote_budget': 0.0, 'pme_actual': 0.0, 'ote_actual': 0.0});
+          
+          if (transfer.toCategoryId != null) {
+            try {
+              final toCat = _categories.firstWhere((c) => c.id == transfer.toCategoryId);
+              if (toCat.budgetType == BudgetType.PME) {
+                metrics[month]!['pme_budget'] = (metrics[month]!['pme_budget'] ?? 0) + transfer.amount;
+              }
+            } catch (_) {}
+          }
+          if (transfer.fromCategoryId != null) {
+            try {
+              final fromCat = _categories.firstWhere((c) => c.id == transfer.fromCategoryId);
+              if (fromCat.budgetType == BudgetType.PME) {
+                metrics[month]!['pme_budget'] = (metrics[month]!['pme_budget'] ?? 0) - transfer.amount;
+              }
+            } catch (_) {}
+          }
+        }
+
+        // Handle OTE Shifts (Global inside metrics)
+        metrics.putIfAbsent('OTE_GLOBAL', () => {'pme_budget': 0.0, 'ote_budget': 0.0, 'pme_actual': 0.0, 'ote_actual': 0.0});
+        
+        bool involveOte = false;
         if (transfer.toCategoryId != null) {
           try {
             final toCat = _categories.firstWhere((c) => c.id == transfer.toCategoryId);
-            if (toCat.budgetType == BudgetType.PME) {
-              metrics[month]!['pme_budget'] = (metrics[month]!['pme_budget'] ?? 0) + transfer.amount;
+            if (toCat.budgetType == BudgetType.OTE) {
+              metrics['OTE_GLOBAL']!['ote_budget'] = (metrics['OTE_GLOBAL']!['ote_budget'] ?? 0) + transfer.amount;
+              involveOte = true;
             }
           } catch (_) {}
         }
-        
         if (transfer.fromCategoryId != null) {
           try {
             final fromCat = _categories.firstWhere((c) => c.id == transfer.fromCategoryId);
-            if (fromCat.budgetType == BudgetType.PME) {
-              metrics[month]!['pme_budget'] = (metrics[month]!['pme_budget'] ?? 0) - transfer.amount;
+            if (fromCat.budgetType == BudgetType.OTE) {
+              metrics['OTE_GLOBAL']!['ote_budget'] = (metrics['OTE_GLOBAL']!['ote_budget'] ?? 0) - transfer.amount;
+              involveOte = true;
             }
           } catch (_) {}
         }
+
+        // SPECIAL CASE: Wallet to Category shifts the Global Limit if it's new money injection
+        // If fromCategoryId is null (Wallet) and to is OTE, it increases OTE limit.
+        // If toCategoryId is null (Wallet) and from is OTE, it decreases OTE limit.
       }
     }
 
