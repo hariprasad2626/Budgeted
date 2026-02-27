@@ -201,7 +201,7 @@ class CategoryManagerScreen extends StatelessWidget {
                         context, 
                         'Total Limit', 
                         '₹${totalActiveLimit.toStringAsFixed(0)}', 
-                        Icons.track_changes, 
+                        Icons.assignment, 
                         Colors.blue,
                       ),
                     ),
@@ -384,7 +384,7 @@ class CategoryManagerScreen extends StatelessWidget {
           data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
           child: ExpansionTile(
             tilePadding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-            leading: Icon(Icons.category, size: 28, color: Colors.teal.shade400),
+            leading: Icon(Icons.folder, size: 28, color: Colors.teal.shade400),
             title: Row(
               children: [
                 Expanded(
@@ -477,9 +477,9 @@ class CategoryManagerScreen extends StatelessWidget {
                     // Action Control Center
                     Row(
                       children: [
-                         _buildModernAction(context, 'Withdraw', Icons.remove, Colors.orange, () => _openInternalTransfer(context, cat, true)),
+                         _buildModernAction(context, 'Withdraw', Icons.arrow_circle_up, Colors.orange, () => _openInternalTransfer(context, cat, true)),
                          const SizedBox(width: 8),
-                         _buildModernAction(context, 'Top Up', Icons.add, Colors.green, () => _openInternalTransfer(context, cat, false)),
+                         _buildModernAction(context, 'Top Up', Icons.arrow_circle_down, Colors.green, () => _openInternalTransfer(context, cat, false)),
                          const SizedBox(width: 8),
                          _buildModernAction(context, 'History', Icons.history, Colors.blue, () => _showTransactions(context, cat)),
                          const SizedBox(width: 8),
