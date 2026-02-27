@@ -541,7 +541,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text('${activeCenter.name} Ledger (v1.1.4+32)'),
+            title: Text('${activeCenter.name} Ledger (v1.1.11+52)'),
           ),
           body: Column(
             children: [
@@ -554,8 +554,19 @@ class _LedgerScreenState extends State<LedgerScreen> {
                     Text(headerTitle, style: TextStyle(fontSize: 14, color: provider.isDarkMode ? null : Colors.black87)),
                     Text(
                       '₹${displayBalance.toStringAsFixed(2)}',
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: provider.isDarkMode ? Colors.amber : Colors.amber.shade800),
+                      style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: provider.isDarkMode ? Colors.amber : Colors.amber.shade800),
                     ),
+                    if (filterMode == 'ALL_CENTER') ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: [
+                          _buildMiniStat('PME', provider.pmeBalance + provider.pmeSurplus, Colors.purpleAccent, provider),
+                          _buildMiniStat('OTE', provider.oteBalance + provider.oteSurplus, Colors.tealAccent, provider),
+                          _buildMiniStat('Wallet', provider.walletBalance, Colors.deepOrangeAccent, provider),
+                        ],
+                      ),
+                    ],
                     if (_selectedLedgerIds.isNotEmpty) ...[
                       Divider(height: 24, color: provider.isDarkMode ? Colors.white24 : Colors.grey.shade400),
                           Row(
@@ -1013,6 +1024,19 @@ class _LedgerScreenState extends State<LedgerScreen> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
         ],
       ),
+    );
+  }
+
+  Widget _buildMiniStat(String label, double amount, Color color, AccountingProvider provider) {
+    return Column(
+      children: [
+        Text(label, style: TextStyle(fontSize: 10, color: provider.isDarkMode ? Colors.grey : Colors.grey.shade700)),
+        const SizedBox(height: 2),
+        Text(
+          '₹${amount.toStringAsFixed(0)}',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color),
+        ),
+      ],
     );
   }
 

@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.11+51';
+  static const String appVersion = '1.1.11+52';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -329,6 +329,59 @@ class AccountingProvider with ChangeNotifier {
     } catch (_) {
       return BudgetType.OTE;
     }
+  }
+
+  double get totalPmeBudgeted {
+    double total = 0;
+    for (var period in _budgetPeriods.where((p) => p.isActive)) {
+       for (var month in period.getAllMonths()) {
+        if (isMonthInPastOrCurrent(month)) {
+          total += period.getPmeForMonth(month);
+        }
+      }
+    }
+    return total;
+  }
+
+  double get totalOteBudgeted {
+    return _budgetPeriods.where((p) => p.isActive).fold(0.0, (sum, p) => sum + p.oteAmount);
+  }
+
+  double get pmeSpent {
+    return _expenses
+        .where((e) => e.budgetType == BudgetType.PME && (e.moneySource != MoneySource.PERSONAL || (e.isSettled && !e.settledAgainstAdvance)))
+        .fold(0.0, (sum, e) => sum + e.amount);
+  }
+
+  double get oteSpent {
+    return _expenses
+        .where((e) => e.budgetType == BudgetType.OTE && (e.moneySource != MoneySource.PERSONAL || (e.isSettled && !e.settledAgainstAdvance)))
+        .fold(0.0, (sum, e) => sum + e.amount);
+  }
+
+  double get pmeSurplus {
+     // Total PME Budget - Total PME Earmarked Target + PME Global Adj
+     double totalPmeEarmarked = _categories
+        .where((c) => c.budgetType == BudgetType.PME && c.isActive)
+        .fold(0.0, (sum, c) => sum + (c.targetAmount * getElapsedMonthsForCategory(c)));
+     
+     double globalAdj = _centerAdjustments
+        .where((a) => a.budgetType == BudgetType.PME && a.categoryId == null)
+        .fold(0.0, (sum, a) => sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount));
+     
+     return totalPmeBudgeted - totalPmeEarmarked + globalAdj;
+  }
+
+  double get oteSurplus {
+     double totalOteEarmarked = _categories
+        .where((c) => c.budgetType == BudgetType.OTE && c.isActive)
+        .fold(0.0, (sum, c) => sum + c.targetAmount);
+
+     double globalAdj = _centerAdjustments
+        .where((a) => a.budgetType == BudgetType.OTE && a.categoryId == null)
+        .fold(0.0, (sum, a) => sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount));
+
+     return totalOteBudgeted - totalOteEarmarked + globalAdj;
   }
 
 

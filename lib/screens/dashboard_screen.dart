@@ -226,24 +226,49 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           ),
           const SizedBox(height: 16),
           const SizedBox(height: 8),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: BalanceCard(
-                  title: 'Budget Categories',
-                  amount: provider.categoriesBalance,
+                  title: 'PME Total',
+                  amount: provider.pmeBalance + provider.pmeSurplus,
                   color: Colors.purpleAccent,
-                  onTap: () => Navigator.pushNamed(context, '/category-manager'),
+                  subtitle: 'Spent: ₹${provider.pmeSpent.toStringAsFixed(0)}',
+                  onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'PME'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                   child: BalanceCard(
-                    title: 'Unallocated Pool',
-                    amount: provider.walletBalance,
-                    color: Colors.deepOrangeAccent,
-                    onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'WALLET'),
+                    title: 'OTE Total',
+                    amount: provider.oteBalance + provider.oteSurplus,
+                    color: Colors.tealAccent,
+                    subtitle: 'Spent: ₹${provider.oteSpent.toStringAsFixed(0)}',
+                    onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'OTE'),
                   ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: BalanceCard(
+                   title: 'Budget Categories',
+                   amount: provider.categoriesBalance,
+                   color: Colors.indigoAccent,
+                   onTap: () => Navigator.pushNamed(context, '/category-manager'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: BalanceCard(
+                  title: 'Wallet/Surplus',
+                  amount: provider.walletBalance,
+                  color: Colors.deepOrangeAccent,
+                  onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'WALLET'),
+                ),
               ),
             ],
           ),
@@ -255,8 +280,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'ADVANCE'),
           ),
           
-          const SizedBox(height: 8),
-
           const SizedBox(height: 24),
           const Text(
             'Project Management',
@@ -265,6 +288,34 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           const SizedBox(height: 12),
           Column(
             children: [
+               Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 70,
+                      child: _ActionCard(
+                        icon: Icons.medical_services_outlined,
+                        color: Colors.purpleAccent,
+                        label: 'PME Ledger',
+                        onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'PME'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SizedBox(
+                      height: 70,
+                      child: _ActionCard(
+                        icon: Icons.work_outline,
+                        color: Colors.tealAccent,
+                        label: 'OTE Ledger',
+                        onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'OTE'),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
@@ -593,7 +644,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           const Padding(
             padding: EdgeInsets.all(16.0),
             child: Text(
-              'App Version: ${AccountingProvider.appVersion}\nBuild: Feb 26, 18:45',
+              'App Version: ${AccountingProvider.appVersion}\nBuild: Feb 27, 13:36',
               style: TextStyle(color: Colors.grey, fontSize: 10),
               textAlign: TextAlign.center,
             ),
