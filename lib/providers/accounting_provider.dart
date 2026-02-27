@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.14+68';
+  static const String appVersion = '1.1.15+69';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -108,6 +108,7 @@ class AccountingProvider with ChangeNotifier {
     if (_activeCostCenterId != null) {
       final centerRealValue = await CacheService.loadValue('centerRealBalance_$_activeCostCenterId');
       if (centerRealValue != null) _costCenterRealBalance = double.tryParse(centerRealValue) ?? 0;
+      _subscribeToCenterData(_activeCostCenterId!);
     }
     notifyListeners();
   }
@@ -167,7 +168,6 @@ class AccountingProvider with ChangeNotifier {
     if (_allExpenses.isNotEmpty) {
       _expenses = _allExpenses.where((e) => e.costCenterId == id).toList();
     }
-    _loadCache();
     notifyListeners();
   }
 
