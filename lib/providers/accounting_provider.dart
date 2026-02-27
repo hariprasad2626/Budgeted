@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.11+53';
+  static const String appVersion = '1.1.11+54';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -317,10 +317,22 @@ class AccountingProvider with ChangeNotifier {
         .fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['remaining']!);
   }
 
+  double get pmeEarmarkedLimit {
+    return _categories
+        .where((c) => c.budgetType == BudgetType.PME && c.isActive)
+        .fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['total_limit']!);
+  }
+
   double get oteBalance {
     return _categories
         .where((c) => c.budgetType == BudgetType.OTE && c.isActive)
         .fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['remaining']!);
+  }
+
+  double get oteEarmarkedLimit {
+    return _categories
+        .where((c) => c.budgetType == BudgetType.OTE && c.isActive)
+        .fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['total_limit']!);
   }
 
   BudgetType getBudgetTypeForCategory(String categoryId) {

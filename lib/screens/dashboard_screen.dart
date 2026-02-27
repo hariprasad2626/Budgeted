@@ -227,14 +227,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           const SizedBox(height: 16),
           const SizedBox(height: 8),
           const SizedBox(height: 8),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: BalanceCard(
                   title: 'PME Available',
-                  amount: provider.pmeBalance + provider.pmeSurplus,
+                  amount: provider.pmeBalance,
                   color: Colors.purpleAccent,
-                  subtitle: 'Spent: ₹${provider.pmeSpent.toStringAsFixed(0)} | Budget: ₹${provider.totalPmeBudgeted.toStringAsFixed(0)}',
+                  subtitle: '/ ₹${provider.pmeEarmarkedLimit.toStringAsFixed(0)} Earmarked',
                   onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'PME'),
                 ),
               ),
@@ -242,9 +243,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               Expanded(
                   child: BalanceCard(
                     title: 'OTE Available',
-                    amount: provider.oteBalance + provider.oteSurplus,
+                    amount: provider.oteBalance,
                     color: Colors.tealAccent,
-                    subtitle: 'Spent: ₹${provider.oteSpent.toStringAsFixed(0)} | Budget: ₹${provider.totalOteBudgeted.toStringAsFixed(0)}',
+                    subtitle: '/ ₹${provider.oteEarmarkedLimit.toStringAsFixed(0)} Earmarked',
                     onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'OTE'),
                   ),
               ),
@@ -255,29 +256,23 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             children: [
               Expanded(
                 child: BalanceCard(
-                   title: 'Budget Categories',
-                   amount: provider.categoriesBalance,
-                   color: Colors.indigoAccent,
-                   onTap: () => Navigator.pushNamed(context, '/category-manager'),
+                  title: 'Master Wallet (Unallocated)',
+                  amount: provider.walletBalance,
+                  color: Colors.deepOrangeAccent,
+                  subtitle: 'Includes PME/OTE Surplus',
+                  onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'WALLET'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: BalanceCard(
-                  title: 'Wallet/Surplus',
-                  amount: provider.walletBalance,
-                  color: Colors.deepOrangeAccent,
-                  onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'WALLET'),
+                  title: 'Advance Unsettled',
+                  amount: provider.advanceUnsettled,
+                  color: Colors.blueAccent,
+                  onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'ADVANCE'),
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 8),
-          BalanceCard(
-            title: 'Advance Unsettled',
-            amount: provider.advanceUnsettled,
-            color: Colors.blueAccent,
-            onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'ADVANCE'),
           ),
           
           const SizedBox(height: 24),
@@ -288,34 +283,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           const SizedBox(height: 12),
           Column(
             children: [
-               Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 70,
-                      child: _ActionCard(
-                        icon: Icons.medical_services_outlined,
-                        color: Colors.purpleAccent,
-                        label: 'PME Ledger',
-                        onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'PME'),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: SizedBox(
-                      height: 70,
-                      child: _ActionCard(
-                        icon: Icons.work_outline,
-                        color: Colors.tealAccent,
-                        label: 'OTE Ledger',
-                        onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'OTE'),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
