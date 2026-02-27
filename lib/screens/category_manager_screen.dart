@@ -16,8 +16,15 @@ import 'add_adjustment_screen.dart';
 import 'transaction_history_screen.dart';
 import '../models/personal_adjustment.dart';
 
-class CategoryManagerScreen extends StatelessWidget {
+class CategoryManagerScreen extends StatefulWidget {
   const CategoryManagerScreen({super.key});
+
+  @override
+  State<CategoryManagerScreen> createState() => _CategoryManagerScreenState();
+}
+
+class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
+  final Set<String> _expandedMainCategories = {};
 
   @override
   Widget build(BuildContext context) {
@@ -233,62 +240,62 @@ class CategoryManagerScreen extends StatelessWidget {
           ),
         ),
 
-        // --- Category Groups ---
-        ...sortedKeys.map((mainCategory) {
-          final subItems = grouped[mainCategory]!;
-          return SliverMainAxisGroup(
-            slivers: [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 28, 20, 16),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 4,
-                        height: 20,
-                        decoration: BoxDecoration(
-                          color: Colors.teal.shade400,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
+        // --- Category Groups (Nested Accordion) ---
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          sliver: SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final mainCategory = sortedKeys[index];
+                final subItems = grouped[mainCategory]!;
+                final isDark =Theme.of(context).brightness == Brightness.dark;
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withOpacity(0.02) : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: isDark ? Colors.white10 : Colors.grey.shade200),
+                  ),
+                  child: Theme(
+                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                    child: ExpansionTile(
+                      onExpansionChanged: (expanded) {
+                        setState(() {
+                          if (expanded) _expandedMainCategories.add(mainCategory);
+                          else _expandedMainCategories.remove(mainCategory);
+                        });
+                      },
+                      tilePadding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                      leading: CircleAvatar(
+                        backgroundColor: Colors.teal.withOpacity(0.1),
+                        radius: 18,
+                        child: Icon(Icons.folder_shared, size: 18, color: Colors.teal.shade400),
                       ),
-                      const SizedBox(width: 12),
-                      Text(
+                      title: Text(
                         mainCategory,
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, letterSpacing: 0.5),
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                       ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.teal.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(20),
+                      subtitle: Text(
+                        '${subItems.length} Sub-Categories • ₹${groupBudgets[mainCategory]!.toStringAsFixed(0)}',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                      ),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                          child: Column(
+                            children: subItems.map((cat) => _buildEnhancedCategoryCard(context, provider, cat)).toList(),
+                          ),
                         ),
-                        child: Text(
-                          '${subItems.length} Categories',
-                          style: TextStyle(fontSize: 10, color: Colors.teal.shade400, fontWeight: FontWeight.w800),
-                        ),
-                      ),
-                      const Spacer(),
-                      Text(
-                        '₹${groupBudgets[mainCategory]!.toStringAsFixed(0)}',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: provider.isDarkMode ? Colors.white70 : Colors.black54),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) => _buildEnhancedCategoryCard(context, provider, subItems[index]),
-                    childCount: subItems.length,
-                  ),
-                ),
-              ),
-            ],
-          );
-        }),
+                );
+              },
+              childCount: sortedKeys.length,
+            ),
+          ),
+        ),
         const SliverToBoxAdapter(child: SizedBox(height: 120)),
       ],
     );

@@ -1,6 +1,6 @@
 name: cost_center_accounting
 description: A new Flutter project for Cost Center Accounting and Personal Reconciliation.
-version: 1.1.15+69
+version: 1.1.16+70
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
