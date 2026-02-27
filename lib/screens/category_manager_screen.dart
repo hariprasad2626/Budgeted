@@ -132,9 +132,7 @@ class CategoryManagerScreen extends StatelessWidget {
       totalWalletSurplus += (outgoingToWallet - incomingFromWallet);
     }
 
-    final unallocatedSection = type == BudgetType.PME 
-        ? provider.unallocatedPmeBudget 
-        : provider.unallocatedOteBudget;
+    final unallocatedSection = provider.walletBalance; 
 
     // grouping
     final Map<String, List<BudgetCategory>> grouped = {};

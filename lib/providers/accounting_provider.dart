@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.11+49';
+  static const String appVersion = '1.1.11+50';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -325,60 +325,7 @@ class AccountingProvider with ChangeNotifier {
     }
   }
 
-  double get unallocatedPmeBudget {
-    final center = activeCostCenter;
-    if (center == null) return 0;
 
-    double totalPmePool = 0;
-    final Set<String> elapsedMonths = {};
-    for (var period in _budgetPeriods.where((p) => p.isActive)) {
-      for (var month in period.getAllMonths()) {
-        if (isMonthInPastOrCurrent(month)) {
-          totalPmePool += period.getPmeForMonth(month);
-          elapsedMonths.add(month);
-        }
-      }
-    }
-
-    double distributedPme = _categories
-        .where((c) => c.budgetType == BudgetType.PME && c.isActive)
-        .fold(0.0, (sum, cat) => sum + (cat.targetAmount * getElapsedMonthsForCategory(cat)));
-
-    double pmeTransfersToCategories = _transfers
-        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == null && t.toCategoryId != null)
-        .where((t) => getBudgetTypeForCategory(t.toCategoryId!) == BudgetType.PME)
-        .fold(0.0, (sum, t) => sum + t.amount);
-
-    double pmeTransfersFromCategories = _transfers
-        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == null && t.fromCategoryId != null)
-        .where((t) => getBudgetTypeForCategory(t.fromCategoryId!) == BudgetType.PME)
-        .fold(0.0, (sum, t) => sum + t.amount);
-
-    return totalPmePool - distributedPme - pmeTransfersToCategories + pmeTransfersFromCategories;
-  }
-
-  double get unallocatedOteBudget {
-    final center = activeCostCenter;
-    if (center == null) return 0;
-
-    double totalOtePool = _budgetPeriods.where((p) => p.isActive).fold(0.0, (sum, p) => sum + p.oteAmount);
-
-    double distributedOte = _categories
-        .where((c) => c.budgetType == BudgetType.OTE && c.isActive)
-        .fold(0.0, (sum, cat) => sum + cat.targetAmount);
-
-    double oteTransfersToCategories = _transfers
-        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == null && t.toCategoryId != null)
-        .where((t) => getBudgetTypeForCategory(t.toCategoryId!) == BudgetType.OTE)
-        .fold(0.0, (sum, t) => sum + t.amount);
-
-    double oteTransfersFromCategories = _transfers
-        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == null && t.fromCategoryId != null)
-        .where((t) => getBudgetTypeForCategory(t.fromCategoryId!) == BudgetType.OTE)
-        .fold(0.0, (sum, t) => sum + t.amount);
-
-    return totalOtePool - distributedOte - oteTransfersToCategories + oteTransfersFromCategories;
-  }
 
   double get costCenterBudgetBalance {
     final center = activeCostCenter;
