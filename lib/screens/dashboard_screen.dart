@@ -17,6 +17,7 @@ import 'add_transfer_screen.dart';
 import '../models/cost_center_adjustment.dart';
 import 'transaction_history_screen.dart';
 import '../services/update_service.dart';
+import 'data_cleanup_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -584,6 +585,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Checking for updates...')));
               UpdateService.checkForUpdate(context, manual: true);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.cleaning_services, color: Colors.orangeAccent),
+            title: const Text('Data Cleanup & Validation'),
+            onTap: () {
+              Navigator.pop(context);
+              _showForm(context, const DataCleanupScreen());
             },
           ),
           const Divider(),
