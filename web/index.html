@@ -85,9 +85,19 @@
   <title>Accounts</title>
   <link rel="manifest" href="manifest.json">
   <script>
-    // Only unregister if explicitly needed or handle updates via UpdateService
-    // Removed unconditional unregister loop to prevent reload cycles.
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function (registrations) {
+        for (let registration of registrations) {
+          registration.unregister();
+        }
+      });
+      caches.keys().then((keyList) => {
+        return Promise.all(keyList.map((key) => caches.delete(key)));
+      });
+    }
   </script>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined">
 </head>
 
 <body>
@@ -95,7 +105,7 @@
     <div class="loader"></div>
     <div class="loading-text">Initializing Accounts...</div>
   </div>
-  <script src="flutter_bootstrap.js?v=64" async></script>
+  <script src="flutter_bootstrap.js?v=65" async></script>
 </body>
 
 </html>
