@@ -10,7 +10,15 @@ import '../services/firestore_service.dart';
 class AddTransferScreen extends StatefulWidget {
   final FundTransfer? transferToEdit;
   final TransferType? initialType;
-  const AddTransferScreen({super.key, this.transferToEdit, this.initialType});
+  final String? prefilledCategoryId;
+  final bool isPrefilledAsSource;
+  const AddTransferScreen({
+    super.key, 
+    this.transferToEdit, 
+    this.initialType,
+    this.prefilledCategoryId,
+    this.isPrefilledAsSource = true,
+  });
 
   @override
   State<AddTransferScreen> createState() => _AddTransferScreenState();
@@ -56,6 +64,19 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
         final provider = Provider.of<AccountingProvider>(context, listen: false);
         setState(() {
           _selectedCostCenterId = provider.activeCostCenterId;
+          
+          if (widget.prefilledCategoryId != null) {
+            try {
+              final cat = provider.categories.firstWhere((c) => c.id == widget.prefilledCategoryId);
+              if (widget.isPrefilledAsSource) {
+                _fromCategoryId = cat.id;
+                _fromCategoryName = cat.category;
+              } else {
+                _toCategoryId = cat.id;
+                _toCategoryName = cat.category;
+              }
+            } catch (_) {}
+          }
         });
       });
     }

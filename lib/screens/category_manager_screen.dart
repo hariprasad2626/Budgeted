@@ -136,6 +136,17 @@ class CategoryManagerScreen extends StatelessWidget {
     }
     final sortedKeys = grouped.keys.toList()..sort();
 
+    // Group-level budget calculations
+    final Map<String, double> groupBudgets = {};
+    for (var key in sortedKeys) {
+      double groupTotal = 0;
+      for (var cat in grouped[key]!) {
+        final status = provider.getCategoryStatus(cat);
+        groupTotal += status['total_limit'] ?? 0;
+      }
+      groupBudgets[key] = groupTotal;
+    }
+
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
@@ -246,9 +257,21 @@ class CategoryManagerScreen extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17, letterSpacing: 0.5),
                       ),
                       const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.teal.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          '${subItems.length} Categories',
+                          style: TextStyle(fontSize: 10, color: Colors.teal.shade400, fontWeight: FontWeight.w800),
+                        ),
+                      ),
+                      const Spacer(),
                       Text(
-                        '(${subItems.length})',
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                        '₹${groupBudgets[mainCategory]!.toStringAsFixed(0)}',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: provider.isDarkMode ? Colors.white70 : Colors.black54),
                       ),
                     ],
                   ),
@@ -460,13 +483,13 @@ class CategoryManagerScreen extends StatelessWidget {
                     // Action Control Center
                     Row(
                       children: [
-                         _buildModernAction(context, 'Withdraw', Icons.outbox_rounded, Colors.orange, () => _showTransferDialog(context, cat, true)),
+                         _buildModernAction(context, 'Withdraw', Icons.remove_circle_outline, Colors.orange, () => _openInternalTransfer(context, cat, true)),
                          const SizedBox(width: 8),
-                         _buildModernAction(context, 'Top Up', Icons.add_business_rounded, Colors.green, () => _showTransferDialog(context, cat, false)),
+                         _buildModernAction(context, 'Top Up', Icons.add_circle_outline, Colors.green, () => _openInternalTransfer(context, cat, false)),
                          const SizedBox(width: 8),
-                         _buildModernAction(context, 'History', Icons.auto_graph_rounded, Colors.blue, () => _showTransactions(context, cat)),
+                         _buildModernAction(context, 'History', Icons.history_rounded, Colors.blue, () => _showTransactions(context, cat)),
                          const SizedBox(width: 8),
-                         _buildModernAction(context, 'Settings', Icons.tune_rounded, Colors.grey, () => _showMoreActions(context, cat)),
+                         _buildModernAction(context, 'Settings', Icons.settings_outlined, Colors.grey, () => _showMoreActions(context, cat)),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -544,6 +567,19 @@ class CategoryManagerScreen extends StatelessWidget {
           const Spacer(),
           Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
         ],
+      ),
+    );
+  }
+
+  void _openInternalTransfer(BuildContext context, BudgetCategory cat, bool isFromCategory) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddTransferScreen(
+          initialType: TransferType.CATEGORY_TO_CATEGORY,
+          prefilledCategoryId: cat.id,
+          isPrefilledAsSource: isFromCategory,
+        ),
       ),
     );
   }
