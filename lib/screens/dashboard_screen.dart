@@ -230,44 +230,29 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             children: [
               Expanded(
                 child: BalanceCard(
-                  title: 'PME Balance',
-                  amount: provider.pmeBalance,
+                  title: 'Budget Categories',
+                  amount: provider.categoriesBalance,
                   color: Colors.purpleAccent,
-                  onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'PME'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: BalanceCard(
-                  title: 'OTE Balance',
-                  amount: provider.oteBalance,
-                  color: Colors.blueAccent,
-                  onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'OTE'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: BalanceCard(
-                  title: 'Advance Unsettled',
-                  amount: provider.advanceUnsettled,
-                  color: Colors.purpleAccent,
-                  onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'ADVANCE'),
+                  onTap: () => Navigator.pushNamed(context, '/category-manager'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                   child: BalanceCard(
-                    title: 'Wallet Balance',
+                    title: 'Unallocated Pool',
                     amount: provider.walletBalance,
                     color: Colors.deepOrangeAccent,
                     onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'WALLET'),
                   ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          BalanceCard(
+            title: 'Advance Unsettled',
+            amount: provider.advanceUnsettled,
+            color: Colors.blueAccent,
+            onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'ADVANCE'),
           ),
           
           const SizedBox(height: 8),

@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.11+50';
+  static const String appVersion = '1.1.11+51';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -303,6 +303,12 @@ class AccountingProvider with ChangeNotifier {
         .where((a) => a.budgetType == type && a.type == AdjustmentType.CREDIT)
         .fold(0, (sum, a) => sum + a.amount);
     return credits - debits;
+  }
+
+  double get categoriesBalance {
+    return _categories
+        .where((c) => c.isActive)
+        .fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['remaining']!);
   }
 
   double get pmeBalance {

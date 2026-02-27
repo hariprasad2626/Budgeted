@@ -111,12 +111,13 @@ class CategoryManagerScreen extends StatelessWidget {
       );
     }
 
-    // summary calculations
+    // Unified summary calculations for the whole Project
     double totalBudget = 0;
     double totalSpent = 0;
     double totalWalletSurplus = 0;
 
-    for (var cat in items) {
+    for (var cat in provider.categories) {
+      if (!cat.isActive) continue;
       final status = provider.getCategoryStatus(cat);
       totalBudget += status['total_limit'] ?? 0;
       totalSpent += status['spent'] ?? 0;
@@ -129,6 +130,8 @@ class CategoryManagerScreen extends StatelessWidget {
           .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == cat.id && t.fromCategoryId == null)
           .fold(0.0, (sum, t) => sum + t.amount);
 
+      // Only count surplus logic for the categories that would be in this tab for the surplus row?
+      // No, let's just make the whole header Project-level data.
       totalWalletSurplus += (outgoingToWallet - incomingFromWallet);
     }
 
@@ -160,7 +163,7 @@ class CategoryManagerScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${type.name} Dashboard'.toUpperCase(),
+                  'PROJECT BUDGET DASHBOARD'.toUpperCase(),
                   style: TextStyle(
                     fontSize: 12, 
                     fontWeight: FontWeight.bold, 
@@ -176,11 +179,11 @@ class CategoryManagerScreen extends StatelessWidget {
                     Expanded(
                       child: _buildMetricCard(
                         context, 
-                        'Section Limit', 
+                        'Project Limit', 
                         '₹${totalBudget.toStringAsFixed(0)}', 
                         Icons.account_balance_wallet, 
                         Colors.blue,
-                        subtitle: 'Inc. Donations/Transf',
+                        subtitle: 'PME + OTE Categories',
                       ),
                     ),
                     const SizedBox(width: 12),
