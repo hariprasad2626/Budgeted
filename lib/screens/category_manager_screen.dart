@@ -201,7 +201,7 @@ class CategoryManagerScreen extends StatelessWidget {
                         context, 
                         'Total Limit', 
                         '₹${totalActiveLimit.toStringAsFixed(0)}', 
-                        Icons.shield_outlined, 
+                        Icons.verified_user, 
                         Colors.blue,
                       ),
                     ),
@@ -211,7 +211,7 @@ class CategoryManagerScreen extends StatelessWidget {
                         context, 
                         'Total Spent', 
                         '₹${totalSpent.toStringAsFixed(0)}', 
-                        Icons.account_balance_wallet_outlined, 
+                        Icons.account_balance_wallet, 
                         Colors.orange,
                         trend: totalActiveLimit > 0 ? (totalSpent / totalActiveLimit) : 0,
                       ),
@@ -222,7 +222,7 @@ class CategoryManagerScreen extends StatelessWidget {
                         context, 
                         'Master Wallet', 
                         '₹${provider.walletBalance.toStringAsFixed(0)}', 
-                        Icons.savings_outlined, 
+                        Icons.savings, 
                         Colors.purple,
                       ),
                     ),
@@ -335,7 +335,7 @@ class CategoryManagerScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 18),
+          Icon(icon, color: color, size: 22),
           const SizedBox(height: 12),
           Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
           const SizedBox(height: 2),
@@ -384,6 +384,7 @@ class CategoryManagerScreen extends StatelessWidget {
           data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
           child: ExpansionTile(
             tilePadding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+            leading: Icon(Icons.category, size: 28, color: Colors.teal.shade400),
             title: Row(
               children: [
                 Expanded(
@@ -467,13 +468,7 @@ class CategoryManagerScreen extends StatelessWidget {
               ],
             ),
             trailing: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.shade50,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.keyboard_arrow_down, size: 20, color: Colors.teal.shade400),
-            ),
+            trailing: Icon(Icons.expand_more, size: 24, color: Colors.teal.shade400), // Expansion arrow updated to solid
             children: [
               Container(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -483,13 +478,13 @@ class CategoryManagerScreen extends StatelessWidget {
                     // Action Control Center
                     Row(
                       children: [
-                         _buildModernAction(context, 'Withdraw', Icons.remove_circle_outline, Colors.orange, () => _openInternalTransfer(context, cat, true)),
+                         _buildModernAction(context, 'Withdraw', Icons.remove_circle, Colors.orange, () => _openInternalTransfer(context, cat, true)),
                          const SizedBox(width: 8),
-                         _buildModernAction(context, 'Top Up', Icons.add_circle_outline, Colors.green, () => _openInternalTransfer(context, cat, false)),
+                         _buildModernAction(context, 'Top Up', Icons.add_circle, Colors.green, () => _openInternalTransfer(context, cat, false)),
                          const SizedBox(width: 8),
-                         _buildModernAction(context, 'History', Icons.history_rounded, Colors.blue, () => _showTransactions(context, cat)),
+                         _buildModernAction(context, 'History', Icons.history, Colors.blue, () => _showTransactions(context, cat)),
                          const SizedBox(width: 8),
-                         _buildModernAction(context, 'Settings', Icons.settings_outlined, Colors.grey, () => _showMoreActions(context, cat)),
+                         _buildModernAction(context, 'Settings', Icons.settings, Colors.grey, () => _showMoreActions(context, cat)),
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -503,8 +498,8 @@ class CategoryManagerScreen extends StatelessWidget {
                       ),
                       child: Column(
                         children: [
-                          _buildDetailRow('Monthly Allotment', '₹${status['budget']?.toStringAsFixed(0)}', icon: Icons.calendar_month),
-                          _buildDetailRow('Active Duration', '${provider.getElapsedMonthsForCategory(cat)} Months', icon: Icons.timer_outlined),
+                          _buildDetailRow('Monthly Allotment', '₹${status['budget']?.toStringAsFixed(0)}', icon: Icons.calendar_month), // Icon changed to solid
+                          _buildDetailRow('Active Duration', '${provider.getElapsedMonthsForCategory(cat)} Months', icon: Icons.timer), // Icon changed to solid
                           _buildDetailRow('External Donations', '₹${status['donations']?.toStringAsFixed(0)}', icon: Icons.volunteer_activism, color: Colors.green),
                           _buildDetailRow('Net Transfers', '₹${status['transfers']?.toStringAsFixed(0)}', icon: Icons.swap_horiz, color: Colors.purple),
                           _buildDetailRow('Balance Adjustments', '₹${status['adjustments']?.toStringAsFixed(0)}', icon: Icons.edit_note, color: Colors.blue),
@@ -536,7 +531,7 @@ class CategoryManagerScreen extends StatelessWidget {
           ),
           child: Column(
             children: [
-              Icon(icon, color: color, size: 22),
+              Icon(icon, color: color, size: 24), // Increased size from 22 to 24
               const SizedBox(height: 6),
               Text(
                 label, 
@@ -560,7 +555,7 @@ class CategoryManagerScreen extends StatelessWidget {
       child: Row(
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 14, color: Colors.grey.shade500),
+            Icon(icon, size: 16, color: Colors.grey.shade500), // Icon size changed to 16
             const SizedBox(width: 8),
           ],
           Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500)),
