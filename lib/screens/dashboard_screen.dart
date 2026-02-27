@@ -336,7 +336,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                             context, 
                              'Personal Advance History', 
                              null,
-                             (p) => p.transfers.where((t) => t.costCenterId == activeCenter.id && t.type == TransferType.TO_PERSONAL && t.fromCategoryId == null && t.toCategoryId == null && !t.isHidden).toList(), 
+                             (p) => p.transfers.where((t) => t.costCenterId == activeCenter.id && t.type == TransferType.TO_PERSONAL && t.fromCategoryId == null && t.toCategoryId == null).toList(), 
                              'Transfer', 
                              const AddTransferScreen(initialType: TransferType.TO_PERSONAL)
                         ),
@@ -355,7 +355,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                             context,
                              'Internal Transfer History', 
                              null,
-                             (p) => p.transfers.where((t) => t.costCenterId == activeCenter.id && t.type == TransferType.CATEGORY_TO_CATEGORY && !t.isHidden).toList(), 
+                             (p) => p.transfers.where((t) => t.costCenterId == activeCenter.id && t.type == TransferType.CATEGORY_TO_CATEGORY).toList(), 
                              'Internal Transfer', // Changed type string to distinguish in popup
                              const AddTransferScreen(initialType: TransferType.CATEGORY_TO_CATEGORY)
                         ),
@@ -791,16 +791,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             },
             child: const Text('Edit'),
           ),
-          if (type == 'Transfer' || type == 'Internal Transfer')
-            TextButton(
-              onPressed: () async {
-                final service = FirestoreService();
-                final transfer = (item as FundTransfer).copyWith(isHidden: true);
-                await service.updateFundTransfer(transfer);
-                if (context.mounted) Navigator.pop(context);
-              },
-              child: const Text('Dissolve', style: TextStyle(color: Colors.orange)),
-            ),
+
           TextButton(
             onPressed: () => _confirmDelete(context, item, type),
             child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),

@@ -277,7 +277,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
         final List<Map<String, dynamic>> historyEntries = [];
 
         // Add Transfers (Advances)
-        for (var t in provider.transfers.where((t) => t.type == TransferType.TO_PERSONAL && t.fromCategoryId == null && t.toCategoryId == null && !t.isHidden)) {
+        for (var t in provider.transfers.where((t) => t.type == TransferType.TO_PERSONAL && t.fromCategoryId == null && t.toCategoryId == null)) {
           final ccName = _getCostCenterName(provider, t.costCenterId);
           historyEntries.add({
             'title': 'Advance from $ccName',
@@ -818,16 +818,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
             },
             child: const Text('Edit'),
           ),
-          if (type == 'Transfer' && item is FundTransfer)
-            TextButton(
-              onPressed: () async {
-                final service = FirestoreService();
-                final transfer = (item as FundTransfer).copyWith(isHidden: true);
-                await service.updateFundTransfer(transfer);
-                if (context.mounted) Navigator.pop(context);
-              },
-              child: const Text('Dissolve', style: TextStyle(color: Colors.orangeAccent)),
-            ),
+
           TextButton(
             onPressed: () => _confirmDelete(context, item.id, type),
             child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),

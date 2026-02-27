@@ -609,7 +609,7 @@ class CategoryManagerScreen extends StatelessWidget {
             // 4. Transfers (In/Out)
             final catTransfers = provider.transfers.where((t) {
               return t.type == TransferType.CATEGORY_TO_CATEGORY && 
-                     (t.fromCategoryId == cat.id || t.toCategoryId == cat.id) && !t.isHidden;
+                     (t.fromCategoryId == cat.id || t.toCategoryId == cat.id);
             }).toList();
 
             final List<dynamic> allHistory = [
@@ -731,16 +731,7 @@ class CategoryManagerScreen extends StatelessWidget {
             },
             child: const Text('Edit'),
           ),
-          if (item is FundTransfer && (type == 'Transfer' || type == 'Internal Transfer'))
-            TextButton(
-              onPressed: () async {
-                final service = FirestoreService();
-                final transfer = (item as FundTransfer).copyWith(isHidden: true);
-                await service.updateFundTransfer(transfer);
-                if (context.mounted) Navigator.pop(context);
-              },
-              child: const Text('Dissolve', style: TextStyle(color: Colors.orange)),
-            ),
+
           TextButton(
             onPressed: () {
               Navigator.pop(context);
