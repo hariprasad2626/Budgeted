@@ -139,11 +139,11 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
                   items: [
                     DropdownMenuItem<String?>(
                       value: null, 
-                      child: Text('General Wallet / Unallocated (₹${provider.walletBalance.toStringAsFixed(0)})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent))
+                      child: Text('General Wallet / Unallocated (Available: ₹${provider.walletBalance.toStringAsFixed(0)})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent))
                     ),
                     ...parentCategories.map<DropdownMenuItem<String?>>((name) {
                       double catTotal = allCats.where((c) => c.category == name).fold(0, (sum, c) => sum + provider.getCategoryStatus(c)['remaining']!);
-                      return DropdownMenuItem<String?>(value: name, child: Text('$name (₹${catTotal.toStringAsFixed(0)})'));
+                      return DropdownMenuItem<String?>(value: name, child: Text('$name (Available: ₹${catTotal.toStringAsFixed(0)})'));
                     }),
                   ],
                   onChanged: (val) => setState(() {
@@ -159,7 +159,7 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
                     value: fromSubCats.any((c) => c.id == _fromCategoryId) ? _fromCategoryId : null,
                     items: fromSubCats.map<DropdownMenuItem<String?>>((c) {
                       double rem = provider.getCategoryStatus(c)['remaining']!;
-                      return DropdownMenuItem<String?>(value: c.id, child: Text('${c.subCategory} (₹${rem.toStringAsFixed(0)})'));
+                      return DropdownMenuItem<String?>(value: c.id, child: Text('${c.subCategory} (Available: ₹${rem.toStringAsFixed(0)})'));
                     }).toList(),
                     onChanged: (val) => setState(() => _fromCategoryId = val),
                     validator: (val) => val == null ? 'Required' : null,
@@ -177,11 +177,11 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
                   items: [
                     DropdownMenuItem<String?>(
                       value: null, 
-                      child: Text('General Wallet / Unallocated (₹${provider.walletBalance.toStringAsFixed(0)})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent))
+                      child: Text('General Wallet / Unallocated (Available: ₹${provider.walletBalance.toStringAsFixed(0)})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent))
                     ),
                     ...parentCategories.map<DropdownMenuItem<String?>>((name) {
                       double catTotal = allCats.where((c) => c.category == name).fold(0, (sum, c) => sum + provider.getCategoryStatus(c)['remaining']!);
-                      return DropdownMenuItem<String?>(value: name, child: Text('$name (₹${catTotal.toStringAsFixed(0)})'));
+                      return DropdownMenuItem<String?>(value: name, child: Text('$name (Available: ₹${catTotal.toStringAsFixed(0)})'));
                     }),
                   ],
                   onChanged: (val) => setState(() {
@@ -197,7 +197,7 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
                     value: toSubCats.any((c) => c.id == _toCategoryId) ? _toCategoryId : null,
                     items: toSubCats.map<DropdownMenuItem<String?>>((c) {
                       double rem = provider.getCategoryStatus(c)['remaining']!;
-                      return DropdownMenuItem<String?>(value: c.id, child: Text('${c.subCategory} (₹${rem.toStringAsFixed(0)})'));
+                      return DropdownMenuItem<String?>(value: c.id, child: Text('${c.subCategory} (Available: ₹${rem.toStringAsFixed(0)})'));
                     }).toList(),
                     onChanged: (val) => setState(() => _toCategoryId = val),
                     validator: (val) => val == null ? 'Required' : null,
@@ -207,23 +207,20 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
 
               if (_type == TransferType.CATEGORY_TO_CATEGORY && isPme) ...[
                 const SizedBox(height: 24),
-                Text('TARGET MONTH (FOR PME)', style: _labelStyle),
+                Text('TARGET MONTH (FOR PME BUDGET SHIFTING)', style: _labelStyle),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String?>(
                   isExpanded: true,
-                  decoration: _inputDecoration('Select Month (Optional)'),
+                  decoration: _inputDecoration('Select Month'),
                   value: _targetMonth,
                   items: [
-                    const DropdownMenuItem<String?>(
-                      value: null, 
-                      child: Text('All Months/General (Default)', style: TextStyle(color: Colors.grey))
-                    ),
                     ...availableMonths.map((m) => DropdownMenuItem(
                       value: m,
                       child: Text(DateFormat('MMMM yyyy').format(DateFormat('yyyy-MM').parse(m))),
                     )),
                   ],
                   onChanged: (val) => setState(() => _targetMonth = val),
+                  validator: (val) => val == null ? 'Month is required for PME transfers' : null,
                 ),
               ],
               
@@ -342,6 +339,33 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
     }
 
     final provider = Provider.of<AccountingProvider>(context, listen: false);
+    final amount = double.tryParse(_amountController.text) ?? 0.0;
+
+    // --- BALANCE VALIDATION (Prevent Negative) ---
+    if (_type == TransferType.CATEGORY_TO_CATEGORY) {
+      double available = 0;
+      if (_fromCategoryId == null) {
+        // Wallet
+        available = provider.walletBalance;
+      } else {
+        // Category
+        final cat = provider.categories.firstWhere((c) => c.id == _fromCategoryId);
+        available = provider.getCategoryStatus(cat)['remaining'] ?? 0;
+      }
+
+      // If editing, add back the previous amount to available pool
+      if (widget.transferToEdit != null && widget.transferToEdit!.fromCategoryId == _fromCategoryId) {
+        available += widget.transferToEdit!.amount;
+      }
+
+      if (amount > available) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Insufficient balance! Available: ₹${available.toStringAsFixed(0)}'),
+          backgroundColor: Colors.redAccent,
+        ));
+        return;
+      }
+    }
 
     final transfer = FundTransfer(
       id: widget.transferToEdit?.id ?? const Uuid().v4(),
