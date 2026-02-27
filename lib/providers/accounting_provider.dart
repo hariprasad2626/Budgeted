@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.11+41';
+  static const String appVersion = '1.1.11+43';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -460,6 +460,18 @@ class AccountingProvider with ChangeNotifier {
     double incomingTransfers = _transfers
         .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == cat.id && !t.isHidden)
         .fold(0.0, (sum, t) => sum + t.amount);
+
+    // Dissolved (Hidden) Transfers mathematically morph into the base 'budget' limit
+    // as requested by user to prevent 'data increasing so much' in transfers logs!
+    double dissolvedOut = _transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.fromCategoryId == cat.id && t.isHidden)
+        .fold(0.0, (sum, t) => sum + t.amount);
+    
+    double dissolvedIn = _transfers
+        .where((t) => t.type == TransferType.CATEGORY_TO_CATEGORY && t.toCategoryId == cat.id && t.isHidden)
+        .fold(0.0, (sum, t) => sum + t.amount);
+
+    budget = budget + dissolvedIn - dissolvedOut;
 
     return {
       'budget': budget,

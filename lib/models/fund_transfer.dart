@@ -58,7 +58,7 @@ class FundTransfer {
     return FundTransfer(
       id: id,
       costCenterId: map['costCenterId'] ?? '',
-      amount: (map['amount'] as num).toDouble(),
+      amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
       date: map['date'] is Timestamp 
           ? (map['date'] as Timestamp).toDate() 
           : (map['date'] is String ? DateTime.parse(map['date']) : DateTime.now()),

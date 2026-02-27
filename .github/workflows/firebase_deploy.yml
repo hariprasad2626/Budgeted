@@ -23,6 +23,7 @@ jobs:
         run: |
           flutter build web --release
           sed -i 's/"mainJsPath":"main.dart.js"/"mainJsPath":"main.dart.js?v=${{ github.run_number }}"/g' build/web/flutter_bootstrap.js || true
+          sed -i 's/src="flutter_bootstrap.js"/src="flutter_bootstrap.js?v=${{ github.run_number }}"/g' build/web/index.html || true
 
       - name: Deploy to Firebase
         uses: FirebaseExtended/action-hosting-deploy@v0
