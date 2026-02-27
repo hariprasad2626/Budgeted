@@ -201,7 +201,7 @@ class CategoryManagerScreen extends StatelessWidget {
                         context, 
                         'Total Limit', 
                         '₹${totalActiveLimit.toStringAsFixed(0)}', 
-                        Icons.verified_user, 
+                        Icons.track_changes, 
                         Colors.blue,
                       ),
                     ),
@@ -222,7 +222,7 @@ class CategoryManagerScreen extends StatelessWidget {
                         context, 
                         'Master Wallet', 
                         '₹${provider.walletBalance.toStringAsFixed(0)}', 
-                        Icons.savings, 
+                        Icons.account_balance, 
                         Colors.purple,
                       ),
                     ),
@@ -467,8 +467,7 @@ class CategoryManagerScreen extends StatelessWidget {
                 ),
               ],
             ),
-            trailing: Container(
-            trailing: Icon(Icons.expand_more, size: 24, color: Colors.teal.shade400), // Expansion arrow updated to solid
+            trailing: Icon(Icons.expand_more, size: 24, color: Colors.teal.shade400),
             children: [
               Container(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -478,9 +477,9 @@ class CategoryManagerScreen extends StatelessWidget {
                     // Action Control Center
                     Row(
                       children: [
-                         _buildModernAction(context, 'Withdraw', Icons.remove_circle, Colors.orange, () => _openInternalTransfer(context, cat, true)),
+                         _buildModernAction(context, 'Withdraw', Icons.remove, Colors.orange, () => _openInternalTransfer(context, cat, true)),
                          const SizedBox(width: 8),
-                         _buildModernAction(context, 'Top Up', Icons.add_circle, Colors.green, () => _openInternalTransfer(context, cat, false)),
+                         _buildModernAction(context, 'Top Up', Icons.add, Colors.green, () => _openInternalTransfer(context, cat, false)),
                          const SizedBox(width: 8),
                          _buildModernAction(context, 'History', Icons.history, Colors.blue, () => _showTransactions(context, cat)),
                          const SizedBox(width: 8),
