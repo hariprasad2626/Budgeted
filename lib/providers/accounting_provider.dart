@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.11+52';
+  static const String appVersion = '1.1.11+53';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -360,16 +360,20 @@ class AccountingProvider with ChangeNotifier {
   }
 
   double get pmeSurplus {
-     // Total PME Budget - Total PME Earmarked Target + PME Global Adj
+     // Baseline Credit - Earmarked Targets - Uncategorized PME Spends + Global Adj
      double totalPmeEarmarked = _categories
         .where((c) => c.budgetType == BudgetType.PME && c.isActive)
         .fold(0.0, (sum, c) => sum + (c.targetAmount * getElapsedMonthsForCategory(c)));
+     
+     double pmeUncategorizedSpent = _expenses
+        .where((e) => e.budgetType == BudgetType.PME && e.categoryId == '' && (e.moneySource != MoneySource.PERSONAL || (e.isSettled && !e.settledAgainstAdvance)))
+        .fold(0.0, (sum, e) => sum + e.amount);
      
      double globalAdj = _centerAdjustments
         .where((a) => a.budgetType == BudgetType.PME && a.categoryId == null)
         .fold(0.0, (sum, a) => sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount));
      
-     return totalPmeBudgeted - totalPmeEarmarked + globalAdj;
+     return totalPmeBudgeted - totalPmeEarmarked - pmeUncategorizedSpent + globalAdj;
   }
 
   double get oteSurplus {
@@ -377,11 +381,15 @@ class AccountingProvider with ChangeNotifier {
         .where((c) => c.budgetType == BudgetType.OTE && c.isActive)
         .fold(0.0, (sum, c) => sum + c.targetAmount);
 
+     double oteUncategorizedSpent = _expenses
+        .where((e) => e.budgetType == BudgetType.OTE && e.categoryId == '' && (e.moneySource != MoneySource.PERSONAL || (e.isSettled && !e.settledAgainstAdvance)))
+        .fold(0.0, (sum, e) => sum + e.amount);
+
      double globalAdj = _centerAdjustments
         .where((a) => a.budgetType == BudgetType.OTE && a.categoryId == null)
         .fold(0.0, (sum, a) => sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount));
 
-     return totalOteBudgeted - totalOteEarmarked + globalAdj;
+     return totalOteBudgeted - totalOteEarmarked - oteUncategorizedSpent + globalAdj;
   }
 
 

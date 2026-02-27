@@ -9,6 +9,8 @@ class BalanceCard extends StatelessWidget {
   final IconData? secondaryIcon;
   final VoidCallback? onSecondaryTap;
 
+  final String? subtitle;
+
   const BalanceCard({
     super.key,
     required this.title,
@@ -17,6 +19,7 @@ class BalanceCard extends StatelessWidget {
     this.onTap,
     this.secondaryIcon,
     this.onSecondaryTap,
+    this.subtitle,
   });
 
   @override
@@ -86,6 +89,17 @@ class BalanceCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (subtitle != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  subtitle!,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

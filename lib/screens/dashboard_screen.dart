@@ -231,20 +231,20 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             children: [
               Expanded(
                 child: BalanceCard(
-                  title: 'PME Total',
+                  title: 'PME Available',
                   amount: provider.pmeBalance + provider.pmeSurplus,
                   color: Colors.purpleAccent,
-                  subtitle: 'Spent: ₹${provider.pmeSpent.toStringAsFixed(0)}',
+                  subtitle: 'Spent: ₹${provider.pmeSpent.toStringAsFixed(0)} | Budget: ₹${provider.totalPmeBudgeted.toStringAsFixed(0)}',
                   onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'PME'),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                   child: BalanceCard(
-                    title: 'OTE Total',
+                    title: 'OTE Available',
                     amount: provider.oteBalance + provider.oteSurplus,
                     color: Colors.tealAccent,
-                    subtitle: 'Spent: ₹${provider.oteSpent.toStringAsFixed(0)}',
+                    subtitle: 'Spent: ₹${provider.oteSpent.toStringAsFixed(0)} | Budget: ₹${provider.totalOteBudgeted.toStringAsFixed(0)}',
                     onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'OTE'),
                   ),
               ),
@@ -644,7 +644,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           const Padding(
             padding: EdgeInsets.all(16.0),
             child: Text(
-              'App Version: ${AccountingProvider.appVersion}\nBuild: Feb 27, 13:36',
+              'App Version: ${AccountingProvider.appVersion}\nBuild: Feb 27, 14:17',
               style: TextStyle(color: Colors.grey, fontSize: 10),
               textAlign: TextAlign.center,
             ),

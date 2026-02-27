@@ -541,7 +541,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text('${activeCenter.name} Ledger (v1.1.11+52)'),
+            title: Text('${activeCenter.name} Ledger (v1.1.11+53)'),
           ),
           body: Column(
             children: [
