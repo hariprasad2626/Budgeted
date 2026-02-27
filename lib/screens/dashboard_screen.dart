@@ -108,11 +108,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               ),
             ],
           ),
-          floatingActionButton: FloatingActionButton(
-            onPressed: () => _showAddMenu(context),
-            backgroundColor: Colors.teal.shade700,
-            child: const Icon(Icons.add, color: Colors.white),
-          ),
         );
       },
     );
