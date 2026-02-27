@@ -616,7 +616,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           const Padding(
             padding: EdgeInsets.all(16.0),
             child: Text(
-              'App Version: ${AccountingProvider.appVersion}\nBuild: Feb 27, 17:41',
+              'App Version: ${AccountingProvider.appVersion}\nBuild: Feb 27, 18:54',
               style: TextStyle(color: Colors.grey, fontSize: 10),
               textAlign: TextAlign.center,
             ),
