@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.11+40';
+  static const String appVersion = '1.1.11+41';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -89,6 +89,9 @@ class AccountingProvider with ChangeNotifier {
   StreamSubscription? _realSub;
   StreamSubscription? _centerRealSub;
   StreamSubscription? _budgetPeriodSub;
+  // Global stream subscriptions
+  StreamSubscription? _transferSub;
+  StreamSubscription? _personalAdjSub;
 
   AccountingProvider() {
     _loadCache().then((_) {
@@ -145,12 +148,15 @@ class AccountingProvider with ChangeNotifier {
   }
 
   void _initGlobal() {
-    _service.getFundTransfers().listen((data) {
+    _transferSub?.cancel();
+    _transferSub = _service.getFundTransfers().listen((data) {
       _transfers = data;
       CacheService.saveList('transfers', data);
       notifyListeners();
     });
-    _service.getPersonalAdjustments().listen((data) {
+    
+    _personalAdjSub?.cancel();
+    _personalAdjSub = _service.getPersonalAdjustments().listen((data) {
       _adjustments = data;
       CacheService.saveList('adjustments', data);
       notifyListeners();

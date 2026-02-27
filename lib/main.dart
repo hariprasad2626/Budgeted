@@ -29,16 +29,7 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Enable Offline Persistence for Web (Lightning Fast Open)
-  if (kIsWeb) {
-    try {
-      await FirebaseFirestore.instance.enablePersistence(
-        const PersistenceSettings(synchronizeTabs: true)
-      );
-    } catch (e) {
-      debugPrint("Firestore Persistence Error: $e");
-    }
-  } else {
+  if (!kIsWeb) {
     try {
       FirebaseFirestore.instance.settings = const Settings(
         persistenceEnabled: true,
