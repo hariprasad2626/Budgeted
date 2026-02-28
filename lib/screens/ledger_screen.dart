@@ -264,13 +264,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
                    final bool fromInCC = t.fromCategoryId != null && provider.categories.any((c) => c.id == t.fromCategoryId);
                    final bool toInCC = t.toCategoryId != null && provider.categories.any((c) => c.id == t.toCategoryId);
 
-                   // HIDE pure internal category-to-category within SAME CC to reduce noise
-                   if (fromInCC && toInCC) {
-                      return <Map<String, dynamic>>[];
-                   }
-
-                   List<Map<String, dynamic>> entries = [];
-                   
+                   // Determine budget types
                    String? fromBType;
                    String fromName = 'Wallet/Unallocated';
                    if (t.fromCategoryId != null) {
@@ -294,6 +288,13 @@ class _LedgerScreenState extends State<LedgerScreen> {
                    } else {
                      toBType = 'WALLET';
                    }
+
+                   // HIDE pure internal category-to-category within SAME CC ONLY if types are same
+                   if (fromInCC && toInCC && fromBType == toBType) {
+                      return <Map<String, dynamic>>[];
+                   }
+
+                   List<Map<String, dynamic>> entries = [];
 
                    // If money COMES FROM our CC (Category or Wallet), add a Debit
                    if (fromInCC || (t.fromCategoryId == null && t.costCenterId == activeCenter.id)) {
@@ -556,18 +557,22 @@ class _LedgerScreenState extends State<LedgerScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    IconButton(
+                    TextButton.icon(
                       onPressed: () => setState(() => _isGroupedView = !_isGroupedView),
                       icon: Icon(
                         _isGroupedView ? Icons.group_work : Icons.access_time, 
                         size: 20,
                         color: _isGroupedView ? Colors.tealAccent : (provider.isDarkMode ? Colors.white : Colors.black54),
                       ),
-                      style: IconButton.styleFrom(
+                      label: Text(
+                        _isGroupedView ? 'Grouped' : 'Timeline',
+                        style: TextStyle(fontSize: 12, color: _isGroupedView ? Colors.tealAccent : (provider.isDarkMode ? Colors.white70 : Colors.black87)),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
                         backgroundColor: _isGroupedView ? Colors.teal.withOpacity(0.2) : (provider.isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade200),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      tooltip: _isGroupedView ? 'Switch to Timeline' : 'Switch to Grouped View',
                     ),
                     const SizedBox(width: 8),
                     IconButton(
