@@ -641,7 +641,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
         return Card(
            margin: const EdgeInsets.only(bottom: 12),
            elevation: 0,
-           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), border: Border.all(color: provider.isDarkMode ? Colors.white10 : Colors.grey.shade200)),
+           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: provider.isDarkMode ? Colors.white10 : Colors.grey.shade200)),
            child: Theme(
               data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
