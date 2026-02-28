@@ -448,6 +448,11 @@ class AccountingProvider with ChangeNotifier {
     return elapsedMonths.length;
   }
 
+  int getElapsedMonthsForCategory(BudgetCategory cat) {
+    if (cat.budgetType != BudgetType.PME) return 1;
+    return getTotalElapsedMonthsInPeriod();
+  }
+
   @override
   void dispose() {
     _catSub?.cancel();

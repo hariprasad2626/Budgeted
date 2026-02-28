@@ -122,7 +122,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
 
             }
           }
-        }
+
 
         // Gather all relevant transactions for this center
         List<Map<String, dynamic>> allEntries = [
