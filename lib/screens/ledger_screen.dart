@@ -92,61 +92,6 @@ class _LedgerScreenState extends State<LedgerScreen> {
                 });
               }
             }
-
-            // 2. Unallocated PME Surplus (Debit from PME, Credit to Wallet)
-            double monthlyEarmarkedPme = provider.categories
-                .where((c) => c.budgetType == BudgetType.PME && c.isActive && provider.isMonthOnOrAfterCategoryCreation(m, c.createdAt))
-                .fold(0.0, (sum, c) => sum + c.targetAmount);
-            double pmeSurplus = monthlyBudgeted - monthlyEarmarkedPme;
-            if (pmeSurplus > 0) {
-              if (filterMode == 'WALLET') {
-                budgetEntries.add({
-                  'type': 'Budget Move',
-                  'source': 'Unallocated',
-                  'amount': pmeSurplus,
-                  'date': monthDate,
-                  'title': 'PME Surplus Credit',
-                  'color': Colors.amberAccent,
-                  'item': null,
-                  'budgetType': 'WALLET',
-                  'status': 'Received',
-                  'statusColor': Colors.amber,
-                  'categoryPath': 'Unallocated PME funds',
-                });
-              } else if (filterMode == 'PME') {
-                budgetEntries.add({
-                  'type': 'Budget Move',
-                  'source': 'Unallocated',
-                  'amount': -pmeSurplus,
-                  'date': monthDate,
-                  'title': 'Move to Wallet (Unallocated)',
-                  'color': Colors.grey,
-                  'item': null,
-                  'budgetType': 'PME',
-                  'status': 'Debited',
-                  'statusColor': Colors.grey,
-                  'categoryPath': 'Sent to General Wallet',
-                });
-              }
-            }
-
-            // 3. PME Reduction Savings (Credit to Wallet only - it's a side pool)
-            double savings = monthlyBaseline - monthlyBudgeted;
-            if (savings > 0 && filterMode == 'WALLET') {
-              budgetEntries.add({
-                'type': 'Budget',
-                'source': 'System Savings',
-                'amount': savings,
-                'date': monthDate,
-                'title': 'PME Reduction Savings',
-                'color': Colors.amberAccent,
-                'item': null,
-                'budgetType': 'WALLET',
-                'status': 'Saved',
-                'statusColor': Colors.amber,
-                'categoryPath': 'Savings from baseline',
-              });
-            }
           }
 
           // 4. OTE Budget and Surplus
@@ -175,38 +120,6 @@ class _LedgerScreenState extends State<LedgerScreen> {
               });
             }
 
-            // OTE Surplus
-            double oteSurplus = totalOteBudgeted - earmarkedOte;
-            if (oteSurplus > 0) {
-              if (filterMode == 'WALLET') {
-                 budgetEntries.add({
-                    'type': 'Budget Move',
-                    'source': 'Unallocated',
-                    'amount': oteSurplus,
-                    'date': oteDate,
-                    'title': 'OTE Surplus Gap',
-                    'color': Colors.amberAccent,
-                    'item': null,
-                    'budgetType': 'WALLET',
-                    'status': 'Received',
-                    'statusColor': Colors.amber,
-                    'categoryPath': 'Unallocated OTE funds',
-                  });
-              } else if (filterMode == 'OTE') {
-                budgetEntries.add({
-                    'type': 'Budget Move',
-                    'source': 'Unallocated',
-                    'amount': -oteSurplus,
-                    'date': oteDate,
-                    'title': 'Move to Wallet (Unallocated)',
-                    'color': Colors.grey,
-                    'item': null,
-                    'budgetType': 'OTE',
-                    'status': 'Debited',
-                    'statusColor': Colors.grey,
-                    'categoryPath': 'Sent to General Wallet',
-                  });
-              }
             }
           }
         }
@@ -561,8 +474,8 @@ class _LedgerScreenState extends State<LedgerScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          _buildMiniStat('PME', provider.pmeBalance + provider.pmeSurplus, Colors.purpleAccent, provider),
-                          _buildMiniStat('OTE', provider.oteBalance + provider.oteSurplus, Colors.tealAccent, provider),
+                          _buildMiniStat('PME', provider.pmeBalance, Colors.purpleAccent, provider),
+                          _buildMiniStat('OTE', provider.oteBalance, Colors.tealAccent, provider),
                           _buildMiniStat('Wallet', provider.walletBalance, Colors.deepOrangeAccent, provider),
                         ],
                       ),

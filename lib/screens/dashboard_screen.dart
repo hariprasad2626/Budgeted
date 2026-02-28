@@ -256,7 +256,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   title: 'Master Wallet (Unallocated)',
                   amount: provider.walletBalance,
                   color: Colors.deepOrangeAccent,
-                  subtitle: 'Includes PME/OTE Surplus',
+                  subtitle: 'Donations & General Funds',
                   onTap: () => Navigator.pushNamed(context, '/ledger', arguments: 'WALLET'),
                 ),
               ),

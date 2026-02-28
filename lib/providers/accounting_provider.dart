@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.19+73';
+  static const String appVersion = '1.1.20+74';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -271,9 +271,7 @@ class AccountingProvider with ChangeNotifier {
   }
 
   double get pmeBalance {
-    return _categories
-        .where((c) => c.budgetType == BudgetType.PME && c.isActive)
-        .fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['remaining']!);
+    return totalPmeBudgeted - pmeSpent + _getAdjustmentTotal(BudgetType.PME);
   }
 
   double get pmeEarmarkedLimit {
@@ -283,9 +281,7 @@ class AccountingProvider with ChangeNotifier {
   }
 
   double get oteBalance {
-    return _categories
-        .where((c) => c.budgetType == BudgetType.OTE && c.isActive)
-        .fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['remaining']!);
+    return totalOteBudgeted - oteSpent + _getAdjustmentTotal(BudgetType.OTE);
   }
 
   double get oteEarmarkedLimit {
@@ -330,38 +326,7 @@ class AccountingProvider with ChangeNotifier {
         .fold(0.0, (sum, e) => sum + e.amount);
   }
 
-  double get pmeSurplus {
-     // Baseline Credit - Earmarked Targets - Uncategorized PME Spends + Global Adj
-     double totalPmeEarmarked = _categories
-        .where((c) => c.budgetType == BudgetType.PME && c.isActive)
-        .fold(0.0, (sum, c) => sum + (c.targetAmount * getElapsedMonthsForCategory(c)));
-     
-     double pmeUncategorizedSpent = _expenses
-        .where((e) => e.budgetType == BudgetType.PME && e.categoryId == '' && (e.moneySource != MoneySource.PERSONAL || (e.isSettled && !e.settledAgainstAdvance)))
-        .fold(0.0, (sum, e) => sum + e.amount);
-     
-     double globalAdj = _centerAdjustments
-        .where((a) => a.budgetType == BudgetType.PME && a.categoryId == null)
-        .fold(0.0, (sum, a) => sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount));
-     
-     return totalPmeBudgeted - totalPmeEarmarked - pmeUncategorizedSpent + globalAdj;
-  }
 
-  double get oteSurplus {
-     double totalOteEarmarked = _categories
-        .where((c) => c.budgetType == BudgetType.OTE && c.isActive)
-        .fold(0.0, (sum, c) => sum + c.targetAmount);
-
-     double oteUncategorizedSpent = _expenses
-        .where((e) => e.budgetType == BudgetType.OTE && e.categoryId == '' && (e.moneySource != MoneySource.PERSONAL || (e.isSettled && !e.settledAgainstAdvance)))
-        .fold(0.0, (sum, e) => sum + e.amount);
-
-     double globalAdj = _centerAdjustments
-        .where((a) => a.budgetType == BudgetType.OTE && a.categoryId == null)
-        .fold(0.0, (sum, a) => sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount));
-
-     return totalOteBudgeted - totalOteEarmarked - oteUncategorizedSpent + globalAdj;
-  }
 
 
 
@@ -414,14 +379,15 @@ class AccountingProvider with ChangeNotifier {
   double get walletBalance {
     final center = activeCostCenter;
     if (center == null) return 0;
-    double catBalances = _categories.where((c) => c.isActive).fold(0.0, (sum, cat) => sum + getCategoryStatus(cat)['remaining']!);
-    return costCenterBudgetBalance - catBalances;
+    // Wallet is now everything that isn't PME or OTE (Donations, Global Adjustments)
+    return costCenterBudgetBalance - pmeBalance - oteBalance;
   }
 
   Map<String, double> getCategoryStatus(BudgetCategory cat) {
     double budget = cat.targetAmount;
     if (cat.budgetType == BudgetType.PME) {
-      budget = budget * getElapsedMonthsForCategory(cat);
+       // Simplify: Use total months passed in the period, ignoring category creation date
+       budget = budget * getTotalElapsedMonthsInPeriod();
     }
 
     final donations = _donations
@@ -468,22 +434,13 @@ class AccountingProvider with ChangeNotifier {
     }
   }
 
-  bool isMonthOnOrAfterCategoryCreation(String month, DateTime createdAt) {
-    try {
-      final parts = month.split('-');
-      final monthVal = int.parse(parts[0]) * 100 + int.parse(parts[1]);
-      final createdVal = createdAt.year * 100 + createdAt.month;
-      return monthVal >= createdVal;
-    } catch (_) {
-      return false;
-    }
-  }
 
-  int getElapsedMonthsForCategory(BudgetCategory cat) {
+
+  int getTotalElapsedMonthsInPeriod() {
     final Set<String> elapsedMonths = {};
     for (var period in _budgetPeriods.where((p) => p.isActive)) {
       for (var month in period.getAllMonths()) {
-        if (isMonthInPastOrCurrent(month) && isMonthOnOrAfterCategoryCreation(month, cat.createdAt)) {
+        if (isMonthInPastOrCurrent(month)) {
           elapsedMonths.add(month);
         }
       }
