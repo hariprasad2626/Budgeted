@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.24+78';
+  static const String appVersion = '1.1.24+81';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -255,13 +255,19 @@ class AccountingProvider with ChangeNotifier {
   }
 
   double _getAdjustmentTotal(BudgetType type) {
-    double debits = _centerAdjustments
-        .where((a) => a.budgetType == type && a.type == AdjustmentType.DEBIT)
-        .fold(0, (sum, a) => sum + a.amount);
-    double credits = _centerAdjustments
-        .where((a) => a.budgetType == type && a.type == AdjustmentType.CREDIT)
-        .fold(0, (sum, a) => sum + a.amount);
-    return credits - debits;
+    return _centerAdjustments.fold(0.0, (sum, a) {
+      BudgetType bType = a.budgetType;
+      if (a.categoryId.isNotEmpty) {
+        try {
+          final cat = _categories.firstWhere((c) => c.id == a.categoryId);
+          bType = cat.budgetType;
+        } catch (_) {}
+      }
+      if (bType == type) {
+        return sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount);
+      }
+      return sum;
+    });
   }
 
   double get categoriesBalance {
@@ -341,7 +347,7 @@ class AccountingProvider with ChangeNotifier {
     try {
       return _categories.firstWhere((c) => c.id == categoryId).budgetType;
     } catch (_) {
-      return BudgetType.OTE;
+      return BudgetType.WALLET;
     }
   }
 
@@ -400,13 +406,15 @@ class AccountingProvider with ChangeNotifier {
         .where((e) => e.moneySource != MoneySource.PERSONAL || (e.isSettled && !e.settledAgainstAdvance))
         .fold(0.0, (sum, e) => sum + e.amount);
 
-    double adjustments = _getAdjustmentTotal(BudgetType.PME) + _getAdjustmentTotal(BudgetType.OTE);
+    double totalAdjustments = _centerAdjustments.fold(0.0, (sum, a) {
+       return sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount);
+    });
 
     double totalAdvancesFromCenter = _transfers
         .where((t) => t.costCenterId == center.id && t.type == TransferType.TO_PERSONAL)
         .fold<double>(0.0, (sum, t) => sum + t.amount);
 
-    return totalBaseline + totalDonations - totalExpenses + adjustments - totalAdvancesFromCenter;
+    return totalBaseline + totalDonations - totalExpenses + totalAdjustments - totalAdvancesFromCenter;
   }
 
   double get advanceUnsettled {

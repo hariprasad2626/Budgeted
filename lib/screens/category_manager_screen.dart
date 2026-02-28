@@ -923,7 +923,9 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                     TextField(controller: subCategoryController, decoration: const InputDecoration(labelText: 'Sub Category (Item)')),
                     TextField(
                       controller: amountController,
-                      decoration: const InputDecoration(labelText: 'Allotted Budget (₹)'),
+                      decoration: InputDecoration(
+                        labelText: budgetType == BudgetType.PME ? 'Monthly Allotted Budget (₹)' : 'One-Time Allotted budget (₹)',
+                      ),
                       keyboardType: TextInputType.number,
                     ),
                     DropdownButtonFormField<BudgetType>(
@@ -1032,7 +1034,9 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                     ),
                     TextField(
                       controller: amountController,
-                      decoration: const InputDecoration(labelText: 'Monthly Allotted Budget (₹)'),
+                      decoration: InputDecoration(
+                        labelText: budgetType == BudgetType.PME ? 'Monthly Allotted Budget (₹)' : 'One-Time Allotted budget (₹)',
+                      ),
                       keyboardType: TextInputType.number,
                     ),
                     DropdownButtonFormField<BudgetType>(

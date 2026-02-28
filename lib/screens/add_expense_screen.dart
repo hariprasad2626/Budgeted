@@ -23,9 +23,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   
   String? _selectedCategoryName; 
   String? _selectedCategoryId;   
-  MoneySource _moneySource = MoneySource.WALLET;
+  MoneySource _moneySource = MoneySource.ISKCON;
   DateTime _selectedDate = DateTime.now();
-  BudgetType? _derivedBudgetType;
+  BudgetType? _derivedBudgetType = BudgetType.PME;
+  double _runningTotal = 0;
 
   @override
   void initState() {
@@ -38,8 +39,26 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       _moneySource = e.moneySource;
       _selectedDate = e.date;
       _derivedBudgetType = e.budgetType;
+      _runningTotal = e.amount;
     } else if (widget.defaultSource != null) {
       _moneySource = widget.defaultSource!;
+    }
+  }
+
+  void _updateRunningTotal(String val) {
+    try {
+       // Simple parser for 10+20 or 10 20
+       final parts = val.replaceAll(',', '').split(RegExp(r'[+\s]'));
+       double sum = 0;
+       for (var p in parts) {
+         if (p.trim().isNotEmpty) {
+           sum += double.tryParse(p.trim()) ?? 0;
+         }
+       }
+       setState(() {
+         _runningTotal = sum;
+       });
+    } catch (_) {
     }
   }
 
@@ -77,7 +96,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (widget.defaultSource != null)
+              if (widget.defaultSource == MoneySource.PERSONAL)
                 InputDecorator(
                   decoration: _inputDecoration('Money Source'),
                   child: Text(
@@ -85,38 +104,50 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
                   ),
                 )
-              else
-                DropdownButtonFormField<MoneySource>(
+              else ...[
+                Text('BUDGET POOL / SOURCE', style: _labelStyle),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
                   isExpanded: true,
-                  decoration: _inputDecoration('Money Source'),
-                  value: _moneySource,
-                  items: MoneySource.values.where((s) => s != MoneySource.PERSONAL).map((s) {
-                    String balanceStr = '';
-                    if (s == MoneySource.WALLET) balanceStr = ' (₹${provider.walletBalance.toStringAsFixed(0)})';
-                    return DropdownMenuItem(
-                      value: s, 
-                      child: Text(_getMoneySourceLabel(s) + balanceStr),
-                    );
-                  }).toList(),
-                  onChanged: (val) => setState(() => _moneySource = val!),
+                  decoration: _inputDecoration('Select Target Pool'),
+                  value: _derivedBudgetType?.toString().split('.').last ?? 'PME',
+                  items: [
+                    DropdownMenuItem(value: 'PME', child: Text('PME (Monthly Budget) - ₹${provider.pmeBalance.toStringAsFixed(0)}')),
+                    DropdownMenuItem(value: 'OTE', child: Text('OTE (One-Time Budget) - ₹${provider.oteBalance.toStringAsFixed(0)}')),
+                  ],
+                  onChanged: (val) {
+                    setState(() {
+                      _moneySource = (widget.defaultSource == MoneySource.PERSONAL) ? MoneySource.PERSONAL : MoneySource.ISKCON;
+                      _derivedBudgetType = val == 'PME' ? BudgetType.PME : BudgetType.OTE;
+                      _selectedCategoryName = null;
+                      _selectedCategoryId = null;
+                    });
+                  },
                 ),
+              ],
+              const SizedBox(height: 24),
+              
               if (_moneySource == MoneySource.ISKCON || _moneySource == MoneySource.PERSONAL) ...[
-                const SizedBox(height: 24),
                 Text('CATEGORY', style: _labelStyle),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String?>(
                   isExpanded: true,
                   decoration: _inputDecoration('Main Category'),
-                  value: parentCategories.contains(_selectedCategoryName) ? _selectedCategoryName : null,
-                  items: parentCategories.map<DropdownMenuItem<String?>>((name) {
-                    double catTotal = allCats.where((c) => c.category == name).fold(0, (sum, c) => sum + provider.getCategoryStatus(c)['remaining']!);
+                  value: parentCategories.where((name) {
+                    final catsInMain = allCats.where((c) => c.category == name && c.budgetType == _derivedBudgetType);
+                    return catsInMain.isNotEmpty;
+                  }).contains(_selectedCategoryName) ? _selectedCategoryName : null,
+                  items: parentCategories.where((name) {
+                    final catsInMain = allCats.where((c) => c.category == name && c.budgetType == _derivedBudgetType);
+                    return catsInMain.isNotEmpty;
+                  }).map<DropdownMenuItem<String?>>((name) {
+                    double catTotal = allCats.where((c) => c.category == name && c.budgetType == _derivedBudgetType).fold(0, (sum, c) => sum + provider.getCategoryStatus(c)['remaining']!);
                     return DropdownMenuItem<String?>(value: name, child: Text('$name (₹${catTotal.toStringAsFixed(0)})', overflow: TextOverflow.ellipsis));
                   }).toList(),
                   onChanged: (val) {
                     setState(() {
                       _selectedCategoryName = val;
                       _selectedCategoryId = null;
-                      _derivedBudgetType = null;
                     });
                   },
                   validator: (val) => val == null ? 'Required' : null,
@@ -125,8 +156,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 DropdownButtonFormField<String?>(
                   isExpanded: true,
                   decoration: _inputDecoration('Sub Category'),
-                  value: filteredSubCats.any((c) => c.id == _selectedCategoryId) ? _selectedCategoryId : null,
-                  items: filteredSubCats.map<DropdownMenuItem<String?>>((c) {
+                  value: filteredSubCats.where((c) => c.budgetType == _derivedBudgetType).any((c) => c.id == _selectedCategoryId) ? _selectedCategoryId : null,
+                  items: filteredSubCats.where((c) => c.budgetType == _derivedBudgetType).map<DropdownMenuItem<String?>>((c) {
                     double rem = provider.getCategoryStatus(c)['remaining']!;
                     return DropdownMenuItem<String?>(
                       value: c.id,
@@ -136,7 +167,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   onChanged: (val) {
                     setState(() {
                       _selectedCategoryId = val;
-                      if (val != null) _derivedBudgetType = provider.getBudgetTypeForCategory(val);
                     });
                   },
                   validator: (val) => val == null ? 'Required' : null,
@@ -148,9 +178,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               TextFormField(
                 controller: _amountController,
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                decoration: _inputDecoration('Amount').copyWith(prefixText: '₹ '),
-                keyboardType: TextInputType.number,
-                validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
+                decoration: _inputDecoration('Amount').copyWith(
+                    prefixText: '₹ ',
+                    suffixText: _amountController.text.contains(RegExp(r'[+\s]')) ? '= ₹${_runningTotal.toStringAsFixed(0)}' : '',
+                    suffixStyle: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)
+                ),
+                keyboardType: TextInputType.text, // To allow '+' or spaces
+                onChanged: _updateRunningTotal,
+                validator: (val) => (val == null || val.isEmpty || _runningTotal == 0) ? 'Required' : null,
               ),
               const SizedBox(height: 16),
               InkWell(
@@ -272,33 +307,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     
     if (provider.activeCostCenterId == null) return;
 
-    // Determine payload
-    String finalCatId = '';
-    BudgetType finalBudgetType = BudgetType.OTE;
-
-    if (_moneySource == MoneySource.ISKCON || _moneySource == MoneySource.PERSONAL) {
-       finalCatId = _selectedCategoryId!;
-       finalBudgetType = _derivedBudgetType!;
-    } else {
-       // For Wallet (ONLY for wallet now, as Personal is handled above), try to find a 'General' category
-       final generalCat = provider.categories.firstWhere(
-          (c) => c.category.toLowerCase().contains('general') || c.subCategory.toLowerCase().contains('general'),
-          orElse: () => provider.categories.isNotEmpty ? provider.categories.first : 
-                        BudgetCategory(
-                          id: 'UNKNOWN', 
-                          costCenterId: '', 
-                          category: 'General', 
-                          subCategory: 'General', 
-                          budgetType: BudgetType.OTE, 
-                          targetAmount: 0,
-                          isActive: true,
-                          remarks: 'Auto Generic',
-                          createdAt: DateTime.now()
-                        )
-       );
-       finalCatId = generalCat.id;
-       finalBudgetType = generalCat.budgetType;
-    }
+    final String finalCatId = _selectedCategoryId!;
+    final BudgetType finalBudgetType = _derivedBudgetType!;
 
     // Strict Rule: Check if expense exceeds category limit
     if (_moneySource == MoneySource.ISKCON) {
@@ -312,16 +322,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             remaining += widget.expenseToEdit!.amount;
          }
 
-         final amount = double.parse(_amountController.text).abs();
-         if (amount > remaining) {
+         if (_runningTotal > remaining) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('Warning: Expense (₹${amount.toStringAsFixed(0)}) exceeds remaining budget (₹${remaining.toStringAsFixed(0)}) for ${cat.subCategory}. Proceeding anyway.'),
+                content: Text('Warning: Expense (₹${_runningTotal.toStringAsFixed(0)}) exceeds remaining budget (₹${remaining.toStringAsFixed(0)}) for ${cat.subCategory}. Proceeding anyway.'),
                 backgroundColor: Colors.orange,
                 duration: const Duration(seconds: 3),
               )
             );
-            // return; // STRICT RULE DISABLED: Allow proceeding
          }
        } catch (_) {
        }
@@ -331,7 +339,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       id: widget.expenseToEdit?.id ?? const Uuid().v4(),
       costCenterId: provider.activeCostCenterId!,
       categoryId: finalCatId,
-      amount: double.parse(_amountController.text).abs(),
+      amount: _runningTotal,
       budgetType: finalBudgetType,
       moneySource: _moneySource,
       date: _selectedDate,

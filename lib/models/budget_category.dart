@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum BudgetType { OTE, PME }
+enum BudgetType { OTE, PME, WALLET }
 
 class BudgetCategory {
   final String id;

@@ -110,6 +110,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               ),
             ],
           ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: () => _showAddMenu(context),
+            backgroundColor: Colors.tealAccent.shade700,
+            foregroundColor: Colors.black,
+            child: const Icon(Icons.add, size: 30),
+          ),
         );
       },
     );
@@ -494,15 +500,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           GridView.count(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 3,
+            crossAxisCount: 2,
             crossAxisSpacing: 10,
             mainAxisSpacing: 10,
-            childAspectRatio: 1.3,
+            childAspectRatio: 2.2,
             children: [
               _ActionCard(
                 icon: Icons.account_balance,
                 color: Colors.tealAccent,
-                 label: 'Personal Adj',
+                label: 'Personal Adj',
                 onTap: () => _showHistoryPopup(
                     context, 
                     'Personal Advance History', 
@@ -513,9 +519,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 ),
               ),
               _ActionCard(
+                icon: Icons.receipt_long,
+                color: Colors.redAccent,
+                label: 'Personal Exp',
+                onTap: () => _showHistoryPopup(
+                    context, 
+                    'Personal Expense History', 
+                    null,
+                    (p) => p.expenses.where((e) => e.moneySource == MoneySource.PERSONAL).toList(),
+                    'Expense', 
+                    const AddExpenseScreen(defaultSource: MoneySource.PERSONAL)
+                ),
+              ),
+              _ActionCard(
                 icon: Icons.swap_horiz,
                 color: Colors.blueAccent,
-                 label: 'Adv Received',
+                label: 'Adv Received',
                 onTap: () => _showHistoryPopup(
                   context, 
                   'Advance Received History', 
@@ -564,21 +583,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             onTap: () { Navigator.pop(context); Navigator.pushNamed(context, '/manage-cost-centers'); },
           ),
           ListTile(
-            leading: const Icon(Icons.receipt_long, color: Colors.tealAccent),
-            title: const Text('Personal Ledger'),
-            onTap: () { Navigator.pop(context); Navigator.pushNamed(context, '/personal-ledger'); },
-          ),
-          Consumer<AccountingProvider>(
-            builder: (context, provider, _) {
-              return SwitchListTile(
-                title: const Text('Dark Mode'),
-                secondary: Icon(provider.isDarkMode ? Icons.dark_mode : Icons.light_mode, color: Colors.purpleAccent),
-                value: provider.isDarkMode,
-                onChanged: (val) => provider.toggleTheme(),
-              );
-            }
-          ),
-          ListTile(
             leading: const Icon(Icons.refresh, color: Colors.orangeAccent),
             title: const Text('Force Refresh & Fix Icons'),
             subtitle: const Text('Clears browser cache and reloads', style: TextStyle(fontSize: 10)),
@@ -593,14 +597,6 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             onTap: () {
               Navigator.pop(context);
               UpdateService.checkForUpdate(context, manual: true);
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.cleaning_services, color: Colors.orangeAccent),
-            title: const Text('Data Cleanup & Validation'),
-            onTap: () {
-              Navigator.pop(context);
-              _showForm(context, const DataCleanupScreen());
             },
           ),
           const Divider(),

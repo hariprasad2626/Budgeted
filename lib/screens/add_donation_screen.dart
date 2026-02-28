@@ -77,34 +77,74 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
                 validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
               ),
               const SizedBox(height: 16),
-              DropdownButtonFormField<DonationMode>(
+              Text('DONATION TARGET POOL', style: _labelStyle),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
                 isExpanded: true,
-                decoration: _inputDecoration('Donation Mode'),
-                value: _mode,
-                items: DonationMode.values.map((m) => DropdownMenuItem(value: m, child: Text(m.toString().split('.').last, overflow: TextOverflow.ellipsis))).toList(),
-                onChanged: (val) => setState(() => _mode = val!),
+                decoration: _inputDecoration('Select Pool'),
+                value: _mode == DonationMode.WALLET ? 'WALLET' : (provider.getBudgetTypeForCategory(_selectedCategoryId ?? '').toString().split('.').last == 'PME' ? 'PME' : 'OTE'),
+                items: const [
+                  DropdownMenuItem(value: 'PME', child: Text('PME (Monthly Budget)')),
+                  DropdownMenuItem(value: 'OTE', child: Text('OTE (One-Time Budget)')),
+                  DropdownMenuItem(value: 'WALLET', child: Text('Master Wallet')),
+                ],
+                onChanged: (val) {
+                  setState(() {
+                    if (val == 'WALLET') {
+                      _mode = DonationMode.WALLET;
+                      _selectedCategoryName = null;
+                      _selectedCategoryId = null;
+                    } else {
+                      _mode = DonationMode.MERGE_TO_BUDGET;
+                      _selectedCategoryName = null;
+                      _selectedCategoryId = null;
+                    }
+                  });
+                },
               ),
               const SizedBox(height: 16),
               if (_mode == DonationMode.MERGE_TO_BUDGET) ...[
-                DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  decoration: _inputDecoration('Target Category'),
-                  value: parentCategories.contains(_selectedCategoryName) ? _selectedCategoryName : null,
-                  items: parentCategories.map((name) => DropdownMenuItem(value: name, child: Text(name, overflow: TextOverflow.ellipsis))).toList(),
-                  onChanged: (val) => setState(() {
-                    _selectedCategoryName = val;
-                    _selectedCategoryId = null;
-                  }),
-                  validator: (val) => (_mode == DonationMode.MERGE_TO_BUDGET && val == null) ? 'Required' : null,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  decoration: _inputDecoration('Sub Category'),
-                  value: filteredSubCats.any((c) => c.id == _selectedCategoryId) ? _selectedCategoryId : null,
-                  items: filteredSubCats.map((c) => DropdownMenuItem(value: c.id, child: Text(c.subCategory, overflow: TextOverflow.ellipsis))).toList(),
-                  onChanged: (val) => setState(() => _selectedCategoryId = val),
-                  validator: (val) => (_mode == DonationMode.MERGE_TO_BUDGET && val == null) ? 'Required' : null,
+                // Determine current pool type for filtering
+                Builder(
+                  builder: (context) {
+                    final currentPool = (provider.getBudgetTypeForCategory(_selectedCategoryId ?? '').toString().split('.').last == 'PME' || 
+                                       (_selectedCategoryId == null && _mode == DonationMode.MERGE_TO_BUDGET)) ? 'PME' : 'OTE';
+                    // Note: If newly switching to MERGE_TO_BUDGET, it might default to OTE due to getBudgetTypeForCategory. 
+                    // Let's refine this: the Pool selector IS the source of truth now.
+                    // But in build, how do I know what the Pool selector's value is?
+                    // I will change _mode back to include PME/OTE intent or just use a local.
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('CATEGORY', style: _labelStyle),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String?>(
+                          isExpanded: true,
+                          decoration: _inputDecoration('Main Category'),
+                          value: parentCategories.where((name) {
+                             return allCats.any((c) => c.category == name && c.budgetType.toString().split('.').last == (provider.getBudgetTypeForCategory(_selectedCategoryId ?? '').toString().split('.').last == 'PME' ? 'PME' : 'OTE'));
+                          }).contains(_selectedCategoryName) ? _selectedCategoryName : null,
+                          items: parentCategories.where((name) {
+                             return allCats.any((c) => c.category == name && c.budgetType.toString().split('.').last == (provider.getBudgetTypeForCategory(_selectedCategoryId ?? '').toString().split('.').last == 'PME' ? 'PME' : 'OTE'));
+                          }).map((name) => DropdownMenuItem(value: name, child: Text(name, overflow: TextOverflow.ellipsis))).toList(),
+                          onChanged: (val) => setState(() {
+                            _selectedCategoryName = val;
+                            _selectedCategoryId = null;
+                          }),
+                          validator: (val) => val == null ? 'Required' : null,
+                        ),
+                        const SizedBox(height: 16),
+                        DropdownButtonFormField<String?>(
+                          isExpanded: true,
+                          decoration: _inputDecoration('Sub Category'),
+                          value: filteredSubCats.any((c) => c.id == _selectedCategoryId) ? _selectedCategoryId : null,
+                          items: filteredSubCats.where((c) => c.budgetType.toString().split('.').last == (provider.getBudgetTypeForCategory(_selectedCategoryId ?? '').toString().split('.').last == 'PME' ? 'PME' : 'OTE')).map((c) => DropdownMenuItem(value: c.id, child: Text(c.subCategory, overflow: TextOverflow.ellipsis))).toList(),
+                          onChanged: (val) => setState(() => _selectedCategoryId = val),
+                          validator: (val) => val == null ? 'Required' : null,
+                        ),
+                      ],
+                    );
+                  }
                 ),
                 const SizedBox(height: 16),
               ],

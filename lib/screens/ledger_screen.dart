@@ -28,6 +28,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
   DateTimeRange? _selectedDateRange;
   bool _isGroupedView = false;
   final Set<String> _selectedLedgerIds = {};
+  bool _isSelectionMode = false;
 
   @override
   Widget build(BuildContext context) {
@@ -336,10 +337,12 @@ class _LedgerScreenState extends State<LedgerScreen> {
             ...provider.centerAdjustments.where((a) => a.amount != 0).map((a) {
                  final isCredit = a.type == AdjustmentType.CREDIT;
                  String? bType;
+                 String catPath = 'Manual Adjustment';
                  if (a.categoryId.isNotEmpty) {
                    try {
                      final cat = provider.categories.firstWhere((c) => c.id == a.categoryId);
                      bType = cat.budgetType.toString().split('.').last;
+                     catPath = 'Adj: ${cat.category} -> ${cat.subCategory}';
                    } catch (_) {
                      bType = a.budgetType.toString().split('.').last;
                    }
@@ -357,7 +360,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
                      'budgetType': bType,
                      'status': isCredit ? 'Credit' : 'Debit',
                      'statusColor': Colors.orangeAccent,
-                     'categoryPath': 'Manual Adjustment',
+                     'categoryPath': catPath,
                  };
             }),
             ...provider.allExpenses.where((e) => e.costCenterId == activeCenter.id && e.moneySource == MoneySource.PERSONAL && e.amount != 0 && e.isSettled).map((e) {
@@ -494,7 +497,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
                         ],
                       ),
                     ],
-                    if (_selectedLedgerIds.isNotEmpty) ...[
+                    if (_isSelectionMode || _selectedLedgerIds.isNotEmpty) ...[
                       Divider(height: 24, color: provider.isDarkMode ? Colors.white24 : Colors.grey.shade400),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -502,13 +505,14 @@ class _LedgerScreenState extends State<LedgerScreen> {
                               Row(
                                 children: [
                                   Checkbox(
-                                    value: _selectedLedgerIds.length == allEntries.length,
+                                    value: _selectedLedgerIds.length == allEntries.length && allEntries.isNotEmpty,
                                     onChanged: (bool? value) {
                                       setState(() {
                                         if (value == true) {
                                           _selectedLedgerIds.addAll(allEntries.map((e) => e['uniqueKey'] as String));
                                         } else {
                                           _selectedLedgerIds.clear();
+                                          _isSelectionMode = false;
                                         }
                                       });
                                     },
@@ -527,7 +531,10 @@ class _LedgerScreenState extends State<LedgerScreen> {
                                   const SizedBox(width: 8),
                                   IconButton(
                                     icon: Icon(Icons.close, size: 18, color: provider.isDarkMode ? Colors.grey : Colors.grey.shade700),
-                                    onPressed: () => setState(() => _selectedLedgerIds.clear()),
+                                    onPressed: () => setState(() {
+                                      _selectedLedgerIds.clear();
+                                      _isSelectionMode = false;
+                                    }),
                                   ),
                                 ],
                               ),
@@ -679,32 +686,54 @@ class _LedgerScreenState extends State<LedgerScreen> {
     final bool isSelected = _selectedLedgerIds.contains(uniqueKey);
 
     return InkWell(
-      onTap: () => _showEntryDetails(context, item, type),
+      onLongPress: () {
+        setState(() {
+          _isSelectionMode = true;
+          _selectedLedgerIds.add(uniqueKey);
+        });
+      },
+      onTap: () {
+        if (_isSelectionMode) {
+          setState(() {
+            if (isSelected) {
+              _selectedLedgerIds.remove(uniqueKey);
+              if (_selectedLedgerIds.isEmpty) _isSelectionMode = false;
+            } else {
+              _selectedLedgerIds.add(uniqueKey);
+            }
+          });
+        } else {
+          _showEntryDetails(context, item, type);
+        }
+      },
       child: Container(
-        color: isSelected ? Colors.teal.withOpacity(0.1) : null,
+        color: isSelected ? (provider.isDarkMode ? Colors.tealAccent.withOpacity(0.1) : Colors.teal.withOpacity(0.1)) : null,
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 24,
-              height: 24,
-              child: Checkbox(
-                value: isSelected,
-                onChanged: (val) {
-                  setState(() {
-                    if (val == true) {
-                      _selectedLedgerIds.add(uniqueKey);
-                    } else {
-                      _selectedLedgerIds.remove(uniqueKey);
-                    }
-                  });
-                },
-                activeColor: Colors.tealAccent,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+            if (_isSelectionMode) ...[
+                SizedBox(
+                width: 24,
+                height: 24,
+                child: Checkbox(
+                  value: isSelected,
+                  onChanged: (val) {
+                    setState(() {
+                      if (val == true) {
+                        _selectedLedgerIds.add(uniqueKey);
+                      } else {
+                        _selectedLedgerIds.remove(uniqueKey);
+                        if (_selectedLedgerIds.isEmpty) _isSelectionMode = false;
+                      }
+                    });
+                  },
+                  activeColor: Colors.tealAccent,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                ),
               ),
-            ),
-            const SizedBox(width: 8),
+              const SizedBox(width: 8),
+            ],
             Container(
               width: 40,
               height: 40,

@@ -57,31 +57,54 @@ class _AddCenterAdjustmentScreenState extends State<AddCenterAdjustmentScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('TARGET CATEGORY', style: _labelStyle),
+              Text('BUDGET POOL', style: _labelStyle),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                isExpanded: true,
-                decoration: _inputDecoration('Select Category'),
-                value: categories.any((c) => c.id == _selectedCategoryId) ? _selectedCategoryId : null,
-                items: categories.map((c) => DropdownMenuItem(
-                  value: c.id, 
-                  child: Text(
-                    '${c.category} - ${c.subCategory} (${c.budgetType.toString().split('.').last})',
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                  )
-                )).toList(),
+                decoration: _inputDecoration('Select Pool'),
+                value: _selectedCategoryId == null && _derivedBudgetType == null ? null : (_derivedBudgetType?.toString().split('.').last ?? 'PME'),
+                items: const [
+                  DropdownMenuItem(value: 'PME', child: Text('PME (Monthly)')),
+                  DropdownMenuItem(value: 'OTE', child: Text('OTE (One-Time)')),
+                  DropdownMenuItem(value: 'WALLET', child: Text('Master Wallet')),
+                ],
                 onChanged: (val) {
                   setState(() {
-                    _selectedCategoryId = val;
-                    if (val != null) {
-                      _derivedBudgetType = provider.getBudgetTypeForCategory(val);
+                    if (val == 'WALLET') {
+                      _derivedBudgetType = null;
+                      _selectedCategoryId = ''; // Empty string in your model seems to mean No Category
+                    } else {
+                      _derivedBudgetType = val == 'PME' ? BudgetType.PME : BudgetType.OTE;
+                      _selectedCategoryId = null; // Forces re-selection
                     }
                   });
                 },
                 validator: (val) => val == null ? 'Required' : null,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
+              if (_derivedBudgetType != null) ...[
+                Text('TARGET CATEGORY', style: _labelStyle),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  decoration: _inputDecoration('Select Sub-Category'),
+                  value: categories.where((c) => c.budgetType == _derivedBudgetType).any((c) => c.id == _selectedCategoryId) ? _selectedCategoryId : null,
+                  items: categories.where((c) => c.budgetType == _derivedBudgetType).map((c) => DropdownMenuItem(
+                    value: c.id, 
+                    child: Text(
+                      '${c.category} - ${c.subCategory}',
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    )
+                  )).toList(),
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedCategoryId = val;
+                    });
+                  },
+                  validator: (val) => val == null ? 'Required' : null,
+                ),
+                const SizedBox(height: 16),
+              ],
               Text('ADJUSTMENT TYPE', style: _labelStyle),
               const SizedBox(height: 8),
               DropdownButtonFormField<AdjustmentType>(
