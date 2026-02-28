@@ -62,7 +62,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         return Scaffold(
           drawer: _buildDrawer(context),
           appBar: AppBar(
-            title: null, // Removed "Personal Dashboard V2" title as requested
+            title: Text('v${AccountingProvider.appVersion}', style: const TextStyle(fontSize: 10, color: Colors.white54)), // Removed "Personal Dashboard V2" title as requested
             actions: [
               if (_selectedIndex == 0 && provider.costCenters.isNotEmpty)
                 Padding(

@@ -461,7 +461,14 @@ class _LedgerScreenState extends State<LedgerScreen> {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text('${activeCenter.name} Ledger (v${AccountingProvider.appVersion})'),
+            title: Text('${activeCenter.name} Ledger'),
+            actions: [
+              IconButton(
+                onPressed: () => setState(() => _isGroupedView = !_isGroupedView),
+                icon: Icon(_isGroupedView ? Icons.access_time : Icons.group_work),
+                tooltip: _isGroupedView ? 'Switch to Timeline' : 'Switch to Grouped View',
+              ),
+            ],
           ),
           body: Column(
             children: [
@@ -554,24 +561,6 @@ class _LedgerScreenState extends State<LedgerScreen> {
                           fillColor: provider.isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade200,
                         ),
                         style: TextStyle(fontSize: 14, color: provider.isDarkMode ? null : Colors.black87),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton.icon(
-                      onPressed: () => setState(() => _isGroupedView = !_isGroupedView),
-                      icon: Icon(
-                        _isGroupedView ? Icons.group_work : Icons.access_time, 
-                        size: 20,
-                        color: _isGroupedView ? Colors.tealAccent : (provider.isDarkMode ? Colors.white : Colors.black54),
-                      ),
-                      label: Text(
-                        _isGroupedView ? 'Grouped' : 'Timeline',
-                        style: TextStyle(fontSize: 12, color: _isGroupedView ? Colors.tealAccent : (provider.isDarkMode ? Colors.white70 : Colors.black87)),
-                      ),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        backgroundColor: _isGroupedView ? Colors.teal.withOpacity(0.2) : (provider.isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade200),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                     const SizedBox(width: 8),
