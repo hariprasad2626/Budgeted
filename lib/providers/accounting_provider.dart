@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.20+74';
+  static const String appVersion = '1.1.21+75';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -271,7 +271,21 @@ class AccountingProvider with ChangeNotifier {
   }
 
   double get pmeBalance {
-    return totalPmeBudgeted - pmeSpent + _getAdjustmentTotal(BudgetType.PME);
+    // Balance = (All Monthly Credit) + (Net Transfers In/Out) - (Actual Spends) + (Manual Adjustments)
+    final pmeCats = _categories.where((c) => c.budgetType == BudgetType.PME).map((c) => c.id).toSet();
+    
+    double netTransfers = _transfers.fold(0.0, (sum, t) {
+      double flow = 0;
+      if (t.toCategoryId != null && pmeCats.contains(t.toCategoryId)) flow += t.amount;
+      if (t.fromCategoryId != null && pmeCats.contains(t.fromCategoryId)) flow -= t.amount;
+      return sum + flow;
+    });
+
+    double netAdjustments = _centerAdjustments
+        .where((a) => a.budgetType == BudgetType.PME)
+        .fold(0.0, (sum, a) => sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount));
+
+    return totalPmeBudgeted + netTransfers - pmeSpent + netAdjustments;
   }
 
   double get pmeEarmarkedLimit {
@@ -281,7 +295,20 @@ class AccountingProvider with ChangeNotifier {
   }
 
   double get oteBalance {
-    return totalOteBudgeted - oteSpent + _getAdjustmentTotal(BudgetType.OTE);
+    final oteCats = _categories.where((c) => c.budgetType == BudgetType.OTE).map((c) => c.id).toSet();
+    
+    double netTransfers = _transfers.fold(0.0, (sum, t) {
+      double flow = 0;
+      if (t.toCategoryId != null && oteCats.contains(t.toCategoryId)) flow += t.amount;
+      if (t.fromCategoryId != null && oteCats.contains(t.fromCategoryId)) flow -= t.amount;
+      return sum + flow;
+    });
+
+    double netAdjustments = _centerAdjustments
+        .where((a) => a.budgetType == BudgetType.OTE)
+        .fold(0.0, (sum, a) => sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount));
+
+    return totalOteBudgeted + netTransfers - oteSpent + netAdjustments;
   }
 
   double get oteEarmarkedLimit {
@@ -315,14 +342,16 @@ class AccountingProvider with ChangeNotifier {
   }
 
   double get pmeSpent {
+    final pmeCats = _categories.where((c) => c.budgetType == BudgetType.PME).map((c) => c.id).toSet();
     return _expenses
-        .where((e) => e.budgetType == BudgetType.PME && (e.moneySource != MoneySource.PERSONAL || (e.isSettled && !e.settledAgainstAdvance)))
+        .where((e) => pmeCats.contains(e.categoryId) && (e.moneySource != MoneySource.PERSONAL || (e.isSettled && !e.settledAgainstAdvance)))
         .fold(0.0, (sum, e) => sum + e.amount);
   }
 
   double get oteSpent {
+    final oteCats = _categories.where((c) => c.budgetType == BudgetType.OTE).map((c) => c.id).toSet();
     return _expenses
-        .where((e) => e.budgetType == BudgetType.OTE && (e.moneySource != MoneySource.PERSONAL || (e.isSettled && !e.settledAgainstAdvance)))
+        .where((e) => oteCats.contains(e.categoryId) && (e.moneySource != MoneySource.PERSONAL || (e.isSettled && !e.settledAgainstAdvance)))
         .fold(0.0, (sum, e) => sum + e.amount);
   }
 
