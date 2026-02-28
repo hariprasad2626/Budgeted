@@ -26,6 +26,7 @@ class LedgerScreen extends StatefulWidget {
 class _LedgerScreenState extends State<LedgerScreen> {
   String _searchQuery = '';
   DateTimeRange? _selectedDateRange;
+  bool _isGroupedView = false;
   final Set<String> _selectedLedgerIds = {};
 
   @override
@@ -129,13 +130,13 @@ class _LedgerScreenState extends State<LedgerScreen> {
           ...budgetEntries,
           ...provider.expenses.where((e) => e.moneySource != MoneySource.PERSONAL && e.amount != 0).expand((e) {
                 final source = e.moneySource.toString().split('.').last;
-                final bType = (e.moneySource == MoneySource.WALLET) ? 'WALLET' : e.budgetType.toString().split('.').last;
-                final actualBType = e.budgetType.toString().split('.').last;
-
+                String actualBType = e.budgetType.toString().split('.').last;
                 String catName = 'General Wallet';
+
                 try {
                   final cat = provider.categories.firstWhere((c) => c.id == e.categoryId);
                   catName = '${cat.category} -> ${cat.subCategory}';
+                  actualBType = cat.budgetType.toString().split('.').last;
                 } catch (_) {}
                 
                 final List<Map<String, dynamic>> multi = [];
@@ -334,10 +335,15 @@ class _LedgerScreenState extends State<LedgerScreen> {
             ...provider.centerAdjustments.where((a) => a.amount != 0).map((a) {
                  final isCredit = a.type == AdjustmentType.CREDIT;
                  String? bType;
-                 if (a.budgetType != null) {
-                   bType = a.budgetType.toString().split('.').last;
+                 if (a.categoryId.isNotEmpty) {
+                   try {
+                     final cat = provider.categories.firstWhere((c) => c.id == a.categoryId);
+                     bType = cat.budgetType.toString().split('.').last;
+                   } catch (_) {
+                     bType = a.budgetType.toString().split('.').last;
+                   }
                  } else {
-                   bType = 'WALLET';
+                   bType = a.budgetType.toString().split('.').last;
                  }
                  return {
                      'type': 'Adjustment',
@@ -454,7 +460,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
 
         return Scaffold(
           appBar: AppBar(
-            title: Text('${activeCenter.name} Ledger (v1.1.11+53)'),
+            title: Text('${activeCenter.name} Ledger (v${AccountingProvider.appVersion})'),
           ),
           body: Column(
             children: [
@@ -551,6 +557,20 @@ class _LedgerScreenState extends State<LedgerScreen> {
                     ),
                     const SizedBox(width: 8),
                     IconButton(
+                      onPressed: () => setState(() => _isGroupedView = !_isGroupedView),
+                      icon: Icon(
+                        _isGroupedView ? Icons.group_work : Icons.access_time, 
+                        size: 20,
+                        color: _isGroupedView ? Colors.tealAccent : (provider.isDarkMode ? Colors.white : Colors.black54),
+                      ),
+                      style: IconButton.styleFrom(
+                        backgroundColor: _isGroupedView ? Colors.teal.withOpacity(0.2) : (provider.isDarkMode ? Colors.white.withOpacity(0.05) : Colors.grey.shade200),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      tooltip: _isGroupedView ? 'Switch to Timeline' : 'Switch to Grouped View',
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
                       onPressed: () async {
                         final picked = await showDateRangePicker(
                           context: context,
@@ -588,130 +608,177 @@ class _LedgerScreenState extends State<LedgerScreen> {
               ),
               const Divider(height: 32),
               Expanded(
-                child: ListView.separated(
-                  itemCount: allEntries.length,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  separatorBuilder: (context, index) => Divider(height: 1, color: provider.isDarkMode ? null : Colors.grey.shade300),
-                  itemBuilder: (context, index) {
-                    final entry = allEntries[index];
-                    final date = entry['date'] as DateTime;
-                    final isPositive = (entry['amount'] as double) > 0;
-                    final title = entry['title'] as String;
-                    final type = entry['type'] as String;
-                    final source = entry['source'] as String;
-                    final status = entry['status'] as String;
-                    final statusColor = entry['statusColor'] as Color;
-                    final color = entry['color'] as Color;
-                    final item = entry['item'];
-
-                    final String uniqueKey = entry['uniqueKey'];
-                    final bool isSelected = _selectedLedgerIds.contains(uniqueKey);
-
-                    return InkWell(
-                        onTap: () => _showEntryDetails(context, item, type),
-                        child: Container(
-                          color: isSelected ? Colors.teal.withOpacity(0.1) : null,
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Small checkbox as requested
-                              SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: Checkbox(
-                                  value: isSelected,
-                                  onChanged: (val) {
-                                    setState(() {
-                                      if (val == true) {
-                                        _selectedLedgerIds.add(uniqueKey);
-                                      } else {
-                                        _selectedLedgerIds.remove(uniqueKey);
-                                      }
-                                    });
-                                  },
-                                  activeColor: Colors.tealAccent,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              // Icon Circle
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: color.withOpacity(0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  isPositive ? Icons.arrow_downward : Icons.arrow_upward,
-                                  color: color,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      DateFormat('MMM dd, yyyy').format(date),
-                                      style: TextStyle(color: provider.isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600, fontSize: 11),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      title,
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: provider.isDarkMode ? null : Colors.black87),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      entry.containsKey('categoryPath') ? entry['categoryPath'] : '$type • $source',
-                                      style: TextStyle(color: provider.isDarkMode ? Colors.white60 : Colors.grey.shade700, fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.end,
-                                children: [
-                                  Text(
-                                    '${isPositive ? "+" : "-"}₹${(entry['amount'] as double).abs().toStringAsFixed(0)}',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: isPositive ? Colors.greenAccent : Colors.redAccent,
-                                    ),
-                                  ),
-                                  if (status.isNotEmpty && status != 'N/A')
-                                    Padding(
-                                      padding: const EdgeInsets.only(top: 4),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: statusColor.withOpacity(0.15),
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          status,
-                                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                  },
-                ),
+                child: _isGroupedView 
+                  ? _buildGroupedView(allEntries, provider)
+                  : _buildTimelineView(allEntries, provider),
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  Widget _buildTimelineView(List<Map<String, dynamic>> allEntries, AccountingProvider provider) {
+    if (allEntries.isEmpty) return const Center(child: Text('No transactions found.'));
+    return ListView.separated(
+      itemCount: allEntries.length,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      separatorBuilder: (context, index) => Divider(height: 1, color: provider.isDarkMode ? null : Colors.grey.shade300),
+      itemBuilder: (context, index) => _buildEntryRow(allEntries[index], provider),
+    );
+  }
+
+  Widget _buildGroupedView(List<Map<String, dynamic>> allEntries, AccountingProvider provider) {
+    if (allEntries.isEmpty) return const Center(child: Text('No transactions found.'));
+    final groups = <String, List<Map<String, dynamic>>>{};
+    for (var e in allEntries) {
+      final g = e['type'] as String;
+      groups.putIfAbsent(g, () => []).add(e);
+    }
+    final sortedGroups = groups.keys.toList()..sort();
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+      children: sortedGroups.map((g) {
+        final items = groups[g]!;
+        final groupSum = items.fold(0.0, (sum, e) => sum + (e['amount'] as double));
+        final isPositive = groupSum >= 0;
+
+        return Card(
+           margin: const EdgeInsets.only(bottom: 12),
+           elevation: 0,
+           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), border: Border.all(color: provider.isDarkMode ? Colors.white10 : Colors.grey.shade200)),
+           child: Theme(
+              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              child: ExpansionTile(
+                initiallyExpanded: true,
+                title: Text(g, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                subtitle: Text('${items.length} items • ₹${groupSum.toStringAsFixed(0)}', 
+                  style: TextStyle(fontSize: 12, color: isPositive ? Colors.green : Colors.redAccent, fontWeight: FontWeight.w600)),
+                leading: CircleAvatar(
+                   backgroundColor: (items.first['color'] as Color).withOpacity(0.1),
+                   child: Icon(Icons.folder_open, color: items.first['color'] as Color),
+                ),
+                children: [
+                  const Divider(),
+                  ...items.map((e) => _buildEntryRow(e, provider)).toList()
+                ],
+              ),
+           ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildEntryRow(Map<String, dynamic> entry, AccountingProvider provider) {
+    final date = entry['date'] as DateTime;
+    final isPositive = (entry['amount'] as double) > 0;
+    final title = entry['title'] as String;
+    final type = entry['type'] as String;
+    final source = entry['source'] as String;
+    final status = entry['status'] as String;
+    final statusColor = entry['statusColor'] as Color;
+    final color = entry['color'] as Color;
+    final item = entry['item'];
+
+    final String uniqueKey = entry['uniqueKey'];
+    final bool isSelected = _selectedLedgerIds.contains(uniqueKey);
+
+    return InkWell(
+      onTap: () => _showEntryDetails(context, item, type),
+      child: Container(
+        color: isSelected ? Colors.teal.withOpacity(0.1) : null,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Checkbox(
+                value: isSelected,
+                onChanged: (val) {
+                  setState(() {
+                    if (val == true) {
+                      _selectedLedgerIds.add(uniqueKey);
+                    } else {
+                      _selectedLedgerIds.remove(uniqueKey);
+                    }
+                  });
+                },
+                activeColor: Colors.tealAccent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isPositive ? Icons.arrow_downward : Icons.arrow_upward,
+                color: color,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    DateFormat('MMM dd, yyyy').format(date),
+                    style: TextStyle(color: provider.isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600, fontSize: 11),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    title,
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: provider.isDarkMode ? null : Colors.black87),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    entry.containsKey('categoryPath') ? entry['categoryPath'] : '$type • $source',
+                    style: TextStyle(color: provider.isDarkMode ? Colors.white60 : Colors.grey.shade700, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${isPositive ? "+" : "-"}₹${(entry['amount'] as double).abs().toStringAsFixed(0)}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: isPositive ? Colors.greenAccent : Colors.redAccent,
+                  ),
+                ),
+                if (status.isNotEmpty && status != 'N/A')
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        status,
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 

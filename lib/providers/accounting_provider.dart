@@ -37,7 +37,7 @@ class AccountingProvider with ChangeNotifier {
   double _costCenterRealBalance = 0;
   DateTime _lastSync = DateTime.now();
   bool _isSyncing = false;
-  static const String appVersion = '1.1.21+75';
+  static const String appVersion = '1.1.22+76';
 
   List<CostCenter> get costCenters => _costCenters;
   String? get activeCostCenterId => _activeCostCenterId;
@@ -281,9 +281,19 @@ class AccountingProvider with ChangeNotifier {
       return sum + flow;
     });
 
-    double netAdjustments = _centerAdjustments
-        .where((a) => a.budgetType == BudgetType.PME)
-        .fold(0.0, (sum, a) => sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount));
+    double netAdjustments = _centerAdjustments.fold(0.0, (sum, a) {
+      BudgetType bType = a.budgetType;
+      if (a.categoryId.isNotEmpty) {
+        try {
+          final cat = _categories.firstWhere((c) => c.id == a.categoryId);
+          bType = cat.budgetType;
+        } catch (_) {}
+      }
+      if (bType == BudgetType.PME) {
+        return sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount);
+      }
+      return sum;
+    });
 
     return totalPmeBudgeted + netTransfers - pmeSpent + netAdjustments;
   }
@@ -304,9 +314,19 @@ class AccountingProvider with ChangeNotifier {
       return sum + flow;
     });
 
-    double netAdjustments = _centerAdjustments
-        .where((a) => a.budgetType == BudgetType.OTE)
-        .fold(0.0, (sum, a) => sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount));
+    double netAdjustments = _centerAdjustments.fold(0.0, (sum, a) {
+      BudgetType bType = a.budgetType;
+      if (a.categoryId.isNotEmpty) {
+        try {
+          final cat = _categories.firstWhere((c) => c.id == a.categoryId);
+          bType = cat.budgetType;
+        } catch (_) {}
+      }
+      if (bType == BudgetType.OTE) {
+        return sum + (a.type == AdjustmentType.CREDIT ? a.amount : -a.amount);
+      }
+      return sum;
+    });
 
     return totalOteBudgeted + netTransfers - oteSpent + netAdjustments;
   }
