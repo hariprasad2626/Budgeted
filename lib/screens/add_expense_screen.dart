@@ -351,7 +351,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     if (widget.expenseToEdit == null) {
       await FirestoreService().addExpense(expense);
     } else {
-      await FirestoreService().updateExpense(expense);
+      await FirestoreService().updateExpense(expense, previousData: widget.expenseToEdit);
     }
     
     if (mounted) {

@@ -197,7 +197,7 @@ class _AddAdjustmentScreenState extends State<AddAdjustmentScreen> {
     if (widget.adjustmentToEdit == null) {
       await FirestoreService().addPersonalAdjustment(adjustment);
     } else {
-      await FirestoreService().updatePersonalAdjustment(adjustment);
+      await FirestoreService().updatePersonalAdjustment(adjustment, previousData: widget.adjustmentToEdit);
     }
     
     if (mounted) {

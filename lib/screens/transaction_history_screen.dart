@@ -260,12 +260,41 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
       padding: const EdgeInsets.all(8),
       children: groups.keys.map((groupKey) {
         final groupItems = groups[groupKey]!;
+        
+        // Calculate group sum
+        double groupSum = groupItems.fold(0.0, (sum, item) {
+          double amount = item.amount ?? 0.0;
+          bool isCredit = false;
+          
+          if (item is Donation) isCredit = true;
+          else if (item is FundTransfer) {
+            if (item.type != TransferType.CATEGORY_TO_CATEGORY) {
+              isCredit = true; // Advance
+            } else {
+              if (widget.contextEntityId != null && item.toCategoryId == widget.contextEntityId) {
+                isCredit = true;
+              } else {
+                isCredit = false; 
+              }
+            }
+          }
+          else if (item is PersonalAdjustment && item.type == AdjustmentType.CREDIT) isCredit = true;
+          else if (item is CostCenterAdjustment && item.type == AdjustmentType.CREDIT) isCredit = true;
+          else if (item is BudgetCategory) isCredit = true; 
+          
+          return sum + (isCredit ? amount : -amount);
+        });
+        
+        final isPositive = groupSum >= 0;
+
         return Card(
           elevation: 0,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white12)),
           child: ExpansionTile(
             initiallyExpanded: true,
             title: Text(groupKey, style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text('${groupItems.length} items • ₹${groupSum.abs().toStringAsFixed(0)}', 
+              style: TextStyle(fontSize: 12, color: isPositive ? Colors.greenAccent : Colors.redAccent, fontWeight: FontWeight.bold)),
             children: groupItems.map((item) => _buildEntryRow(item, provider)).toList(),
           ),
         );

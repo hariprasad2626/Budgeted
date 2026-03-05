@@ -4,26 +4,67 @@ import '../providers/accounting_provider.dart';
 import '../models/fixed_amount.dart';
 import '../services/firestore_service.dart';
 
-class FixedAmountsManagerScreen extends StatelessWidget {
+class FixedAmountsManagerScreen extends StatefulWidget {
   const FixedAmountsManagerScreen({super.key});
+
+  @override
+  State<FixedAmountsManagerScreen> createState() => _FixedAmountsManagerScreenState();
+}
+
+class _FixedAmountsManagerScreenState extends State<FixedAmountsManagerScreen> {
+  String _searchQuery = '';
+  bool _isSearching = false;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Fixed Personal Balances')),
+      appBar: AppBar(
+        title: _isSearching 
+          ? TextField(
+              autofocus: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Search amounts...',
+                hintStyle: TextStyle(color: Colors.white.withOpacity(0.7)),
+                border: InputBorder.none,
+              ),
+              onChanged: (val) => setState(() => _searchQuery = val),
+            )
+          : const Text('Fixed Personal Balances'),
+        actions: [
+          IconButton(
+            icon: Icon(_isSearching ? Icons.close : Icons.search),
+            onPressed: () {
+              setState(() {
+                if (_isSearching) {
+                  _isSearching = false;
+                  _searchQuery = '';
+                } else {
+                  _isSearching = true;
+                }
+              });
+            },
+          )
+        ],
+      ),
       body: Consumer<AccountingProvider>(
         builder: (context, provider, child) {
           final items = provider.fixedAmounts;
           
-          if (items.isEmpty) {
+          final filteredItems = items.where((i) {
+             if (_searchQuery.isEmpty || !_isSearching) return true;
+             return i.remarks.toLowerCase().contains(_searchQuery.toLowerCase());
+          }).toList();
+          
+          if (filteredItems.isEmpty) {
             return const Center(child: Text('No fixed amounts saved yet.'));
           }
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: items.length,
+            itemCount: filteredItems.length,
             itemBuilder: (context, index) {
-              final item = items[index];
+              final item = filteredItems[index];
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 child: ListTile(
@@ -40,7 +81,7 @@ class FixedAmountsManagerScreen extends StatelessWidget {
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete, size: 20, color: Colors.redAccent),
-                        onPressed: () => _confirmDelete(context, item.id),
+                        onPressed: () => _confirmDelete(context, item),
                       ),
                     ],
                   ),
@@ -109,7 +150,7 @@ class FixedAmountsManagerScreen extends StatelessWidget {
                     remarks: remarks,
                     amount: amount,
                     createdAt: template.createdAt,
-                  ));
+                  ), previousData: template);
                 }
                 if (context.mounted) Navigator.pop(context);
               } catch (e) {
@@ -127,18 +168,18 @@ class FixedAmountsManagerScreen extends StatelessWidget {
     );
   }
 
-  void _confirmDelete(BuildContext context, String id) {
+  void _confirmDelete(BuildContext context, FixedAmount item) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text('Confirm Delete'),
         content: const Text('Are you sure you want to remove this fixed balance component?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           TextButton(
             onPressed: () async {
-              await FirestoreService().deleteFixedAmount(id);
-              if (context.mounted) Navigator.pop(context);
+              await FirestoreService().deleteFixedAmount(item);
+              if (ctx.mounted) Navigator.pop(ctx);
             },
             child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
           ),

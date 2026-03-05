@@ -425,7 +425,7 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
     if (widget.transferToEdit == null) {
       await FirestoreService().addFundTransfer(transfer);
     } else {
-      await FirestoreService().updateFundTransfer(transfer);
+      await FirestoreService().updateFundTransfer(transfer, previousData: widget.transferToEdit);
     }
     
     if (mounted) {

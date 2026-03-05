@@ -141,7 +141,6 @@ class ReportsScreen extends StatelessWidget {
                   ),
                   TextButton(
                     onPressed: () {
-                      Navigator.pop(ctx);
                       _confirmDelete(context, item);
                     },
                     child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
@@ -166,8 +165,11 @@ class ReportsScreen extends StatelessWidget {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           TextButton(
             onPressed: () async {
-              await FirestoreService().deleteExpense(item.id);
-              if (ctx.mounted) Navigator.pop(ctx);
+              await FirestoreService().deleteExpense(item);
+              if (context.mounted) {
+                Navigator.of(context).pop(); // Close confirmation
+                Navigator.of(context).pop(); // Close details
+              }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
           ),

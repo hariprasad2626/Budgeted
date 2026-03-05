@@ -225,7 +225,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
                         isSettled: true,
                         settledAgainstAdvance: againstAdvance,
                       );
-                      await service.updateExpense(updated);
+                      await service.updateExpense(updated, previousData: expense);
                       count++;
                     } catch (e) {
                       debugPrint('Error settling expense: $e');
@@ -617,6 +617,8 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
         final centerExpenses = grouped[costCenterId]!;
         final centerName = _getCostCenterName(provider, costCenterId);
 
+        double groupTotal = centerExpenses.fold(0.0, (sum, e) => sum + e.amount);
+
         return Card(
            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
            elevation: 0,
@@ -624,7 +626,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
            child: ExpansionTile(
               initiallyExpanded: true,
               title: Text(centerName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              subtitle: Text('${centerExpenses.length} items', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              subtitle: Text('${centerExpenses.length} items • ₹${groupTotal.toStringAsFixed(0)}', style: const TextStyle(fontSize: 12, color: Colors.redAccent, fontWeight: FontWeight.bold)),
               children: centerExpenses.map((e) => _buildPendingRow(context, e, provider)).toList(),
            ),
         );
@@ -696,6 +698,9 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
       padding: const EdgeInsets.all(8),
       children: groups.keys.map((groupKey) {
         final items = groups[groupKey]!;
+        double groupSum = items.fold(0.0, (sum, e) => sum + (e['amount'] as double));
+        final isPositive = groupSum >= 0;
+
         return Card(
            margin: const EdgeInsets.only(bottom: 8),
            elevation: 0,
@@ -703,6 +708,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
            child: ExpansionTile(
               initiallyExpanded: true,
               title: Text(groupKey, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('${items.length} items • ₹${groupSum.abs().toStringAsFixed(0)}', style: TextStyle(fontSize: 12, color: isPositive ? Colors.greenAccent : Colors.redAccent, fontWeight: FontWeight.bold)),
               children: items.map((e) => _buildHistoryRow(e)).toList(),
            ),
         );
@@ -900,7 +906,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
           ),
 
           TextButton(
-            onPressed: () => _confirmDelete(context, item.id, type),
+            onPressed: () => _confirmDelete(context, item, type),
             child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
           ),
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
@@ -924,10 +930,10 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
         settledAgainstAdvance: false, // Clear out the advance flag
       );
       
-      await FirestoreService().updateExpense(updated);
+      await FirestoreService().updateExpense(updated, previousData: expense);
       
       if (context.mounted) {
-        Navigator.pop(context); // Close dialog
+        Navigator.of(context).pop(); // Close details dialog
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Expense Unsettled!')));
       }
     } catch (e) {
@@ -935,7 +941,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
     }
   }
 
-  void _confirmDelete(BuildContext context, String entryId, String type) {
+  void _confirmDelete(BuildContext context, dynamic item, String type) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -946,16 +952,15 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
           TextButton(
             onPressed: () async {
               final service = FirestoreService();
-              if (type == 'Expense') await service.deleteExpense(entryId);
-              else if (type == 'Donation') await service.deleteDonation(entryId);
-              else if (type == 'Transfer') await service.deleteFundTransfer(entryId);
-              else if (type == 'Adjustment') await service.deletePersonalAdjustment(entryId);
+              // Pass the full object to log it for undo
+              if (type == 'Expense') await service.deleteExpense(item);
+              else if (type == 'Donation') await service.deleteDonation(item);
+              else if (type == 'Transfer') await service.deleteFundTransfer(item);
+              else if (type == 'Adjustment') await service.deletePersonalAdjustment(item);
               
-              if (ctx.mounted) {
-                Navigator.pop(ctx); 
-              }
               if (context.mounted) {
-                Navigator.pop(context); 
+                Navigator.of(context).pop(); // Close confirmation dialog
+                Navigator.of(context).pop(); // Close details dialog
               }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),

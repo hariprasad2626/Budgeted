@@ -1021,7 +1021,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
           ),
 
           TextButton(
-            onPressed: () => _confirmDelete(context, item.id, type),
+            onPressed: () => _confirmDelete(context, item, type),
             child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
           ),
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
@@ -1043,7 +1043,7 @@ class _LedgerScreenState extends State<LedgerScreen> {
     );
   }
 
-  void _confirmDelete(BuildContext context, String entryId, String type) {
+  void _confirmDelete(BuildContext context, dynamic item, String type) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1054,20 +1054,20 @@ class _LedgerScreenState extends State<LedgerScreen> {
           TextButton(
             onPressed: () async {
               final service = FirestoreService();
-              if (type == 'Expense') await service.deleteExpense(entryId);
-              else if (type == 'Donation') await service.deleteDonation(entryId);
-              else if (type == 'Transfer' || type == 'Internal Transfer') await service.deleteFundTransfer(entryId);
+              if (type == 'Expense') await service.deleteExpense(item);
+              else if (type == 'Donation') await service.deleteDonation(item);
+              else if (type == 'Transfer' || type == 'Internal Transfer') await service.deleteFundTransfer(item);
               else if (type == 'Adjustment') {
-                // Determine if it's a Personal or Cost Center adjustment by checking its properties 
-                // but since Ledger mostly shows Cost Center adjustments:
-                await service.deleteCostCenterAdjustment(entryId);
+                if (item is PersonalAdjustment) {
+                   await service.deletePersonalAdjustment(item);
+                } else {
+                   await service.deleteCostCenterAdjustment(item as CostCenterAdjustment);
+                }
               }
               
-              if (ctx.mounted) {
-                Navigator.pop(ctx); // Close confirmation
-              }
               if (context.mounted) {
-                Navigator.pop(context); // Close details
+                Navigator.of(context).pop(); // Close confirmation dialog
+                Navigator.of(context).pop(); // Close details dialog
               }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),

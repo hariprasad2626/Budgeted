@@ -285,7 +285,7 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
     if (widget.donationToEdit == null) {
       await FirestoreService().addDonation(donation);
     } else {
-      await FirestoreService().updateDonation(donation);
+      await FirestoreService().updateDonation(donation, previousData: widget.donationToEdit);
     }
 
     if (mounted) {

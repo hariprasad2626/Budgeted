@@ -989,12 +989,15 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
           TextButton(
             onPressed: () async {
               final service = FirestoreService();
-              if (item is Expense) await service.deleteExpense(item.id);
-              else if (item is Donation) await service.deleteDonation(item.id);
-              else if (item is FundTransfer) await service.deleteFundTransfer(item.id);
-              else if (item is CostCenterAdjustment) await service.deleteCostCenterAdjustment(item.id);
+              if (item is Expense) await service.deleteExpense(item);
+              else if (item is Donation) await service.deleteDonation(item);
+              else if (item is FundTransfer) await service.deleteFundTransfer(item);
+              else if (item is CostCenterAdjustment) await service.deleteCostCenterAdjustment(item);
               
-              if (ctx.mounted) Navigator.pop(ctx);
+              if (context.mounted) {
+                Navigator.of(context).pop(); // Close confirmation
+                Navigator.of(context).pop(); // Close details
+              }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
           ),
@@ -1013,7 +1016,7 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
             onPressed: () async {
-              await FirestoreService().deleteCategory(cat.id);
+              await FirestoreService().deleteCategory(cat);
               if (context.mounted) {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -1125,7 +1128,7 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                       remarks: remarksController.text,
                       createdAt: cat.createdAt,
                     );
-                    await FirestoreService().updateCategory(updated);
+                    await FirestoreService().updateCategory(updated, previousData: cat);
                     if (context.mounted) {
                       Navigator.pop(context);
                       ScaffoldMessenger.of(context).showSnackBar(

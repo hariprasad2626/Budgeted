@@ -391,7 +391,7 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
       if (existingPeriod == null) {
         await _service.addBudgetPeriod(period);
       } else {
-        await _service.updateBudgetPeriod(period);
+        await _service.updateBudgetPeriod(period, previousData: existingPeriod);
       }
       
       if (mounted) {
@@ -602,7 +602,7 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              await _service.deleteBudgetPeriod(period.id);
+              await _service.deleteBudgetPeriod(period);
               if (mounted) {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(

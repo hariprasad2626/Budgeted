@@ -108,7 +108,7 @@ class _CostCenterManagerScreenState extends State<CostCenterManagerScreen> {
                 if (center == null) {
                   await service.addCostCenter(newCenter);
                 } else {
-                  await service.updateCostCenter(newCenter);
+                  await service.updateCostCenter(newCenter, previousData: center);
                 }
                 if (context.mounted) {
                   Navigator.pop(context);
@@ -284,7 +284,7 @@ class _CostCenterManagerScreenState extends State<CostCenterManagerScreen> {
                                             pmeStartMonth: center.pmeStartMonth,
                                             pmeEndMonth: center.pmeEndMonth,
                                           );
-                                          FirestoreService().updateCostCenter(updated);
+                                          FirestoreService().updateCostCenter(updated, previousData: center);
                                         },
                                         activeColor: Colors.tealAccent,
                                       ),
@@ -307,6 +307,11 @@ class _CostCenterManagerScreenState extends State<CostCenterManagerScreen> {
                                         onPressed: () => _showAddDialog(center),
                                         visualDensity: VisualDensity.compact,
                                       ),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline, size: 20, color: Colors.grey),
+                                        onPressed: () => _confirmDelete(center),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
                                     ],
                                   ),
                                 ],
@@ -326,6 +331,29 @@ class _CostCenterManagerScreenState extends State<CostCenterManagerScreen> {
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddDialog(),
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  void _confirmDelete(CostCenter center) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Cost Center?'),
+        content: Text('Are you sure you want to delete "${center.name}"?\n\nThis will NOT delete transactions, but they will become unlinked from this center.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              await FirestoreService().deleteCostCenter(center);
+              if (mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Cost Center deleted.')));
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
       ),
     );
   }

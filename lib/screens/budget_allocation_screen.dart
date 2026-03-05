@@ -18,6 +18,7 @@ class _BudgetAllocationScreenState extends State<BudgetAllocationScreen> {
   final _remarksController = TextEditingController();
   BudgetType _type = BudgetType.OTE;
   DateTime _selectedDate = DateTime.now();
+  String _searchQuery = '';
 
   @override
   Widget build(BuildContext context) {
@@ -91,23 +92,78 @@ class _BudgetAllocationScreenState extends State<BudgetAllocationScreen> {
                   child: const Text('Add Allocation'),
                 ),
                 const Divider(height: 32),
-                const Text('Recent Allocations', style: TextStyle(fontWeight: FontWeight.bold)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Recent Allocations', style: TextStyle(fontWeight: FontWeight.bold)),
+                    SizedBox(
+                      width: 150,
+                      child: TextField(
+                        decoration: const InputDecoration(
+                          hintText: 'Search...',
+                          isDense: true,
+                          prefixIcon: Icon(Icons.search, size: 16),
+                          border: OutlineInputBorder(),
+                        ),
+                        onChanged: (val) => setState(() => _searchQuery = val),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 Expanded(
-                  child: ListView.builder(
-                    itemCount: provider.allocations.length,
-                    itemBuilder: (context, index) {
-                      final item = provider.allocations[index];
-                      return ListTile(
-                        title: Text('${item.budgetType.name}: ₹${item.amount}'),
-                        subtitle: Text('${item.month ?? DateFormat('yyyy-MM-dd').format(item.date)} - ${item.remarks}'),
+                  child: Builder(
+                    builder: (context) {
+                      final filteredAllocs = provider.allocations.where((item) {
+                        if (_searchQuery.isEmpty) return true;
+                        final q = _searchQuery.toLowerCase();
+                        return item.remarks.toLowerCase().contains(q) || item.budgetType.name.toLowerCase().contains(q);
+                      }).toList();
+
+                      return ListView.builder(
+                        itemCount: filteredAllocs.length,
+                        itemBuilder: (context, index) {
+                          final item = filteredAllocs[index];
+                          return ListTile(
+                            title: Text('${item.budgetType.name}: ₹${item.amount}'),
+                            subtitle: Text('${item.month ?? DateFormat('yyyy-MM-dd').format(item.date)} - ${item.remarks}'),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.grey),
+                              onPressed: () => _confirmDelete(item),
+                            ),
+                          );
+                        },
                       );
-                    },
+                    }
                   ),
                 ),
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _confirmDelete(BudgetAllocation item) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Allocation?'),
+        content: Text('Are you sure you want to delete this allocation of ₹${item.amount}?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              await FirestoreService().deleteAllocation(item);
+              if (mounted) {
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Allocation deleted.')));
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
       ),
     );
   }

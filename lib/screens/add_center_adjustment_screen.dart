@@ -237,7 +237,7 @@ class _AddCenterAdjustmentScreenState extends State<AddCenterAdjustmentScreen> {
     if (widget.adjustmentToEdit == null) {
       await FirestoreService().addCostCenterAdjustment(adjustment);
     } else {
-      await FirestoreService().updateCostCenterAdjustment(adjustment);
+      await FirestoreService().updateCostCenterAdjustment(adjustment, previousData: widget.adjustmentToEdit);
     }
     
     if (mounted) Navigator.pop(context);

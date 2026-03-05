@@ -18,6 +18,7 @@ import '../models/cost_center_adjustment.dart';
 import 'transaction_history_screen.dart';
 import '../services/update_service.dart';
 import 'data_cleanup_screen.dart';
+import 'activity_log_screen.dart';
 import '../services/update_service_stub.dart'
     if (dart.library.html) '../services/update_service_web.dart' as platform;
 
@@ -592,6 +593,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             },
           ),
           ListTile(
+            leading: const Icon(Icons.history, color: Colors.tealAccent),
+            title: const Text('Activity Log / Undo'),
+            subtitle: const Text('Track and revert recent changes', style: TextStyle(fontSize: 10)),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(context, MaterialPageRoute(builder: (c) => const ActivityLogScreen()));
+            },
+          ),
+          ListTile(
             leading: const Icon(Icons.system_update, color: Colors.blueAccent),
             title: const Text('Check for Updates'),
             onTap: () {
@@ -827,19 +837,20 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             onPressed: () async {
               final service = FirestoreService();
               if (item is Expense) {
-                await service.deleteExpense(item.id);
+                await service.deleteExpense(item);
               } else if (item is Donation) {
-                await service.deleteDonation(item.id);
+                await service.deleteDonation(item);
               } else if (item is FundTransfer) {
-                await service.deleteFundTransfer(item.id);
+                await service.deleteFundTransfer(item);
               } else if (item is PersonalAdjustment) {
-                await service.deletePersonalAdjustment(item.id);
+                await service.deletePersonalAdjustment(item);
               } else if (item is CostCenterAdjustment) {
-                await service.deleteCostCenterAdjustment(item.id);
+                await service.deleteCostCenterAdjustment(item);
               }
               
-              if (ctx.mounted) {
-                Navigator.pop(ctx); // Close confirmation
+              if (context.mounted) {
+                Navigator.of(context).pop(); // Close confirmation dialog
+                Navigator.of(context).pop(); // Close details dialog
               }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
