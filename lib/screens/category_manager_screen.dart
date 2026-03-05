@@ -25,6 +25,29 @@ class CategoryManagerScreen extends StatefulWidget {
 
 class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
   final Set<String> _expandedMainCategories = {};
+  String _searchQuery = '';
+  final Set<String> _selectedCategoryIds = {};
+  bool _isSelectionMode = false;
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedCategoryIds.contains(id)) {
+        _selectedCategoryIds.remove(id);
+        if (_selectedCategoryIds.isEmpty) _isSelectionMode = false;
+      } else {
+        _isSelectionMode = true;
+        _selectedCategoryIds.add(id);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +60,31 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.transparent,
-        title: const Text('Budget Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: _isSearching
+                ? TextField(
+                    controller: _searchController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                      hintText: 'Search categories...',
+                      hintStyle: TextStyle(color: Colors.white70),
+                      border: InputBorder.none,
+                    ),
+                    autofocus: true,
+                    onChanged: (val) => setState(() => _searchQuery = val),
+                  )
+                : const Text('Budget Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(
+            icon: Icon(_isSearching ? Icons.close : Icons.search),
+            onPressed: () => setState(() {
+              _isSearching = !_isSearching;
+              if (!_isSearching) {
+                _searchQuery = '';
+                _searchController.clear();
+              }
+            }),
+          ),
+        ],
       ),
       body: DefaultTabController(
         length: 2,
@@ -137,8 +184,16 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
       totalActiveLimit += status['total_limit'] ?? 0;
     }
 
+    var filteredItems = items;
+    if (_searchQuery.isNotEmpty) {
+      filteredItems = items.where((c) {
+        return c.category.toLowerCase().contains(_searchQuery.toLowerCase()) || 
+               c.subCategory.toLowerCase().contains(_searchQuery.toLowerCase());
+      }).toList();
+    }
+
     final Map<String, List<BudgetCategory>> grouped = {};
-    for (var item in items) {
+    for (var item in filteredItems) {
       grouped.putIfAbsent(item.category, () => []).add(item);
     }
     final sortedKeys = grouped.keys.toList()..sort();
@@ -154,9 +209,67 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
       groupBudgets[key] = groupTotal;
     }
 
+    double selectedSum = items
+        .where((c) => _selectedCategoryIds.contains(c.id))
+        .fold(0.0, (sum, c) {
+          final status = provider.getCategoryStatus(c);
+          return sum + (status['remaining'] ?? 0.0);
+        });
+
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
+        if (_isSelectionMode || _selectedCategoryIds.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.teal.withOpacity(0.1),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                   Row(
+                    children: [
+                      Checkbox(
+                        value: filteredItems.isNotEmpty && filteredItems.every((c) => _selectedCategoryIds.contains(c.id)),
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true) {
+                              _selectedCategoryIds.addAll(filteredItems.map((c) => c.id));
+                              _isSelectionMode = true;
+                            } else {
+                              _selectedCategoryIds.clear();
+                              _isSelectionMode = false;
+                            }
+                          });
+                        },
+                        activeColor: Colors.tealAccent,
+                      ),
+                      const Text('Select All', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                    ],
+                  ),
+                  Row(
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          const Text('Selected Remaining:', style: TextStyle(fontSize: 10, color: Colors.tealAccent)),
+                          Text('₹${selectedSum.toStringAsFixed(0)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                        ],
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20, color: Colors.grey),
+                        onPressed: () => setState(() {
+                           _selectedCategoryIds.clear();
+                           _isSelectionMode = false;
+                        }),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         // --- Premium Dashboard Header Section ---
         SliverToBoxAdapter(
           child: Container(
@@ -375,25 +488,38 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
     final bool isOver = spent > totalLimit;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.03) : Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: isDark ? Colors.white.withOpacity(0.06) : Colors.grey.shade200),
-        boxShadow: isDark ? [] : [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 12, offset: const Offset(0, 6))
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: Theme(
-          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-          child: ExpansionTile(
-            tilePadding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-            leading: Icon(Icons.folder, size: 28, color: Colors.teal.shade400),
-            title: Row(
-              children: [
+    final bool isSelected = _selectedCategoryIds.contains(cat.id);
+
+    return InkWell(
+      onLongPress: () => _toggleSelection(cat.id),
+      onTap: () {
+        if (_isSelectionMode) {
+          _toggleSelection(cat.id);
+        }
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.teal.withOpacity(0.1) : (isDark ? Colors.white.withOpacity(0.03) : Colors.white),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: isSelected ? Colors.tealAccent : (isDark ? Colors.white.withOpacity(0.06) : Colors.grey.shade200)),
+          boxShadow: isDark ? [] : [
+            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 12, offset: const Offset(0, 6))
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              tilePadding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+              leading: _isSelectionMode ? Checkbox(
+                value: isSelected,
+                onChanged: (_) => _toggleSelection(cat.id),
+                activeColor: Colors.tealAccent,
+              ) : Icon(Icons.folder, size: 28, color: Colors.teal.shade400),
+              title: Row(
+                children: [
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -519,8 +645,9 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildModernAction(BuildContext context, String label, IconData icon, Color color, VoidCallback onTap) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -907,6 +1034,22 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
     final amountController = TextEditingController(text: cat.targetAmount.toString());
     final remarksController = TextEditingController(text: cat.remarks);
     BudgetType budgetType = cat.budgetType;
+    double runningTotal = cat.targetAmount;
+
+    void updateRunningTotal(String val, StateSetter setDialogState) {
+      try {
+        final parts = val.replaceAll(',', '').split(RegExp(r'[+\s]'));
+        double sum = 0;
+        for (var p in parts) {
+          if (p.trim().isNotEmpty) {
+            sum += double.tryParse(p.trim()) ?? 0;
+          }
+        }
+        setDialogState(() {
+          runningTotal = sum;
+        });
+      } catch (_) {}
+    }
 
     showDialog(
       context: context,
@@ -942,7 +1085,7 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
                 ElevatedButton(
                   onPressed: () async {
-                    final newAmount = double.tryParse(amountController.text) ?? 0.0;
+                    final newAmount = runningTotal;
                     
                     // Validation: Check if this update exceeds strict budget limits
                     // We need to temporarily simulate the change
@@ -1007,6 +1150,22 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
     final amountController = TextEditingController(text: template?.targetAmount.toString() ?? '0');
     final remarksController = TextEditingController(text: template?.remarks ?? '');
     BudgetType budgetType = template?.budgetType ?? BudgetType.OTE;
+    double runningTotal = template?.targetAmount ?? 0;
+
+    void updateRunningTotal(String val, StateSetter setDialogState) {
+      try {
+        final parts = val.replaceAll(',', '').split(RegExp(r'[+\s]'));
+        double sum = 0;
+        for (var p in parts) {
+          if (p.trim().isNotEmpty) {
+            sum += double.tryParse(p.trim()) ?? 0;
+          }
+        }
+        setDialogState(() {
+          runningTotal = sum;
+        });
+      } catch (_) {}
+    }
 
     if (provider.activeCostCenterId == null) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No active cost center selected.')));
@@ -1055,7 +1214,7 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                   onPressed: () async {
                     if (categoryController.text.isEmpty) return;
                     
-                    final newAmount = double.tryParse(amountController.text) ?? 0.0;
+                    final newAmount = runningTotal;
                     
                     // Validation for Strict Rules
                     final otherCategories = provider.categories.where((c) => c.budgetType == budgetType);

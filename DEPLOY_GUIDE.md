@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This document outlines the three methods available to deploy or build the Cost Center Accounting application.
+This document outlines the versioning and deployment methods available for the Cost Center Accounting application.
 
 ---
 
@@ -17,7 +17,24 @@ This is the **preferred method** for the Web application.
 
 ---
 
-## 2. Manual Web Deployment (Local Terminal)
+## 2. Pushing Updates to GitHub (Versioning)
+Always push your changes to keep your repository in sync and to backup your work.
+
+### Commands:
+```powershell
+# 1. Stage your changes
+git add .
+
+# 2. Commit with a meaningful message
+git commit -m "Brief description of changes (e.g., 'Implemented list generalization')"
+
+# 3. Push to main branch
+git push origin main
+```
+
+---
+
+## 3. Manual Web Deployment (Local Terminal)
 Use this if you want to deploy immediately without pushing to GitHub, or for testing.
 
 **Prerequisites**: Firebase CLI initialized (`firebase login`).
@@ -35,7 +52,7 @@ Use this if you want to deploy immediately without pushing to GitHub, or for tes
 
 ---
 
-## 3. Manual Android Build (APK)
+## 4. Manual Android Build (APK)
 To generate a release APK for mobile devices.
 
 ### Using the Automated Script:

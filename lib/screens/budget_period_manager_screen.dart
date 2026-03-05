@@ -292,14 +292,33 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'PME Amount (₹)',
-                hintText: 'Default: ₹${_defaultPme}',
-              ),
-              autofocus: true,
+            StatefulBuilder(
+              builder: (context, setLocalState) {
+                double runningTotal = double.tryParse(amountController.text) ?? currentAmount;
+                return TextField(
+                  controller: amountController,
+                  keyboardType: TextInputType.text,
+                  decoration: InputDecoration(
+                    labelText: 'PME Amount (₹)',
+                    hintText: 'Default: ₹${_defaultPme}',
+                    suffixText: amountController.text.contains(RegExp(r'[+\s]')) ? '= ₹${runningTotal.toStringAsFixed(0)}' : '',
+                    suffixStyle: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)
+                  ),
+                  autofocus: true,
+                  onChanged: (val) {
+                    try {
+                      final parts = val.replaceAll(',', '').split(RegExp(r'[+\s]'));
+                      double sum = 0;
+                      for (var p in parts) {
+                        if (p.trim().isNotEmpty) {
+                          sum += double.tryParse(p.trim()) ?? 0;
+                        }
+                      }
+                      setLocalState(() => runningTotal = sum);
+                    } catch (_) {}
+                  },
+                );
+              }
             ),
             const SizedBox(height: 16),
             TextField(
@@ -318,7 +337,14 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              final newAmount = double.tryParse(amountController.text) ?? _defaultPme;
+              double sum = 0;
+              final parts = amountController.text.replaceAll(',', '').split(RegExp(r'[+\s]'));
+              for (var p in parts) {
+                if (p.trim().isNotEmpty) {
+                  sum += double.tryParse(p.trim()) ?? 0;
+                }
+              }
+              final newAmount = sum != 0 ? sum : _defaultPme;
               final newRemark = remarkController.text.trim();
               setDialogState(() {
                 if (newAmount != _defaultPme) {
@@ -414,11 +440,32 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              decoration: const InputDecoration(labelText: 'PME Amount (₹)'),
+            StatefulBuilder(
+              builder: (context, setLocalState) {
+                double runningTotal = double.tryParse(amountController.text) ?? currentAmount;
+                return TextField(
+                  controller: amountController,
+                  keyboardType: TextInputType.text,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: 'PME Amount (₹)',
+                    suffixText: amountController.text.contains(RegExp(r'[+\s]')) ? '= ₹${runningTotal.toStringAsFixed(0)}' : '',
+                    suffixStyle: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)
+                  ),
+                  onChanged: (val) {
+                    try {
+                      final parts = val.replaceAll(',', '').split(RegExp(r'[+\s]'));
+                      double sum = 0;
+                      for (var p in parts) {
+                        if (p.trim().isNotEmpty) {
+                          sum += double.tryParse(p.trim()) ?? 0;
+                        }
+                      }
+                      setLocalState(() => runningTotal = sum);
+                    } catch (_) {}
+                  },
+                );
+              }
             ),
             const SizedBox(height: 16),
             TextField(
@@ -431,7 +478,14 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () async {
-              final newAmount = double.tryParse(amountController.text) ?? period.defaultPmeAmount;
+              double sum = 0;
+              final parts = amountController.text.replaceAll(',', '').split(RegExp(r'[+\s]'));
+              for (var p in parts) {
+                if (p.trim().isNotEmpty) {
+                  sum += double.tryParse(p.trim()) ?? 0;
+                }
+              }
+              final newAmount = sum != 0 ? sum : period.defaultPmeAmount;
               final newRemark = remarkController.text.trim();
               
               final updatedMonthlyPme = Map<String, double>.from(period.monthlyPme);
@@ -475,12 +529,48 @@ class _BudgetPeriodManagerScreenState extends State<BudgetPeriodManagerScreen> {
   Widget _buildNumberField(String label, double initial, Function(double) onChanged) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: TextFormField(
-        initialValue: initial.toString(),
-        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder(), isDense: true),
-        keyboardType: TextInputType.number,
-        onChanged: (val) => onChanged(double.tryParse(val) ?? 0),
-        onSaved: (val) => onChanged(double.tryParse(val ?? '0') ?? 0),
+      child: StatefulBuilder(
+        builder: (context, setLocalState) {
+          final controller = TextEditingController(text: initial == 0 ? '' : initial.toString());
+          double runningTotal = initial;
+
+          return TextFormField(
+            controller: controller,
+            decoration: InputDecoration(
+              labelText: label, 
+              border: const OutlineInputBorder(), 
+              isDense: true,
+              suffixText: controller.text.contains(RegExp(r'[+\s]')) ? '= ₹${runningTotal.toStringAsFixed(0)}' : '',
+              suffixStyle: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)
+            ),
+            keyboardType: TextInputType.text,
+            onChanged: (val) {
+              try {
+                final parts = val.replaceAll(',', '').split(RegExp(r'[+\s]'));
+                double sum = 0;
+                for (var p in parts) {
+                  if (p.trim().isNotEmpty) {
+                    sum += double.tryParse(p.trim()) ?? 0;
+                  }
+                }
+                setLocalState(() => runningTotal = sum);
+                onChanged(sum);
+              } catch (_) {}
+            },
+            onSaved: (val) {
+              double sum = 0;
+              if (val != null) {
+                final parts = val.replaceAll(',', '').split(RegExp(r'[+\s]'));
+                for (var p in parts) {
+                  if (p.trim().isNotEmpty) {
+                    sum += double.tryParse(p.trim()) ?? 0;
+                  }
+                }
+              }
+              onChanged(sum);
+            },
+          );
+        }
       ),
     );
   }

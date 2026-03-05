@@ -23,6 +23,7 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
   String? _selectedCategoryName;
   String? _selectedCategoryId;
   DateTime _selectedDate = DateTime.now();
+  double _runningTotal = 0;
 
   @override
   void initState() {
@@ -34,6 +35,24 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
       _mode = d.mode;
       _selectedCategoryId = d.budgetCategoryId;
       _selectedDate = d.date;
+      _runningTotal = d.amount;
+    }
+  }
+
+  void _updateRunningTotal(String val) {
+    try {
+       // Simple parser for 10+20 or 10 20
+       final parts = val.replaceAll(',', '').split(RegExp(r'[+\s]'));
+       double sum = 0;
+       for (var p in parts) {
+         if (p.trim().isNotEmpty) {
+           sum += double.tryParse(p.trim()) ?? 0;
+         }
+       }
+       setState(() {
+         _runningTotal = sum;
+       });
+    } catch (_) {
     }
   }
 
@@ -72,9 +91,14 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
               TextFormField(
                 controller: _amountController,
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                decoration: _inputDecoration('Amount').copyWith(prefixText: '₹ '),
-                keyboardType: TextInputType.number,
-                validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
+                decoration: _inputDecoration('Amount').copyWith(
+                  prefixText: '₹ ',
+                  suffixText: _amountController.text.contains(RegExp(r'[+\s]')) ? '= ₹${_runningTotal.toStringAsFixed(0)}' : '',
+                  suffixStyle: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)
+                ),
+                keyboardType: TextInputType.text,
+                onChanged: _updateRunningTotal,
+                validator: (val) => (val == null || val.isEmpty || _runningTotal == 0) ? 'Required' : null,
               ),
               const SizedBox(height: 16),
               Text('DONATION TARGET POOL', style: _labelStyle),
@@ -251,7 +275,7 @@ class _AddDonationScreenState extends State<AddDonationScreen> {
     final donation = Donation(
       id: widget.donationToEdit?.id ?? const Uuid().v4(),
       costCenterId: provider.activeCostCenterId!,
-      amount: double.parse(_amountController.text).abs(),
+      amount: _runningTotal,
       mode: _mode,
       budgetCategoryId: _mode == DonationMode.MERGE_TO_BUDGET ? _selectedCategoryId : null,
       date: _selectedDate,

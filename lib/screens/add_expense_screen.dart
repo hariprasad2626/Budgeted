@@ -25,7 +25,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   String? _selectedCategoryId;   
   MoneySource _moneySource = MoneySource.ISKCON;
   DateTime _selectedDate = DateTime.now();
-  BudgetType? _derivedBudgetType = BudgetType.PME;
+  BudgetType? _derivedBudgetType = BudgetType.OTE;
   double _runningTotal = 0;
 
   @override
@@ -96,35 +96,36 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (widget.defaultSource == MoneySource.PERSONAL)
+              if (widget.defaultSource == MoneySource.PERSONAL) ...[
                 InputDecorator(
                   decoration: _inputDecoration('Money Source'),
                   child: Text(
                     _getMoneySourceLabel(widget.defaultSource!),
                     style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey),
                   ),
-                )
-              else ...[
-                Text('BUDGET POOL / SOURCE', style: _labelStyle),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  isExpanded: true,
-                  decoration: _inputDecoration('Select Target Pool'),
-                  value: _derivedBudgetType?.toString().split('.').last ?? 'PME',
-                  items: [
-                    DropdownMenuItem(value: 'PME', child: Text('PME (Monthly Budget) - ₹${provider.pmeBalance.toStringAsFixed(0)}')),
-                    DropdownMenuItem(value: 'OTE', child: Text('OTE (One-Time Budget) - ₹${provider.oteBalance.toStringAsFixed(0)}')),
-                  ],
-                  onChanged: (val) {
-                    setState(() {
-                      _moneySource = (widget.defaultSource == MoneySource.PERSONAL) ? MoneySource.PERSONAL : MoneySource.ISKCON;
-                      _derivedBudgetType = val == 'PME' ? BudgetType.PME : BudgetType.OTE;
-                      _selectedCategoryName = null;
-                      _selectedCategoryId = null;
-                    });
-                  },
                 ),
+                const SizedBox(height: 16),
               ],
+              
+              Text('BUDGET POOL / TYPE', style: _labelStyle),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                decoration: _inputDecoration('Select Target Pool'),
+                value: _derivedBudgetType?.toString().split('.').last ?? 'OTE',
+                items: [
+                  DropdownMenuItem(value: 'OTE', child: Text('OTE (One-Time Budget) - ₹${provider.oteBalance.toStringAsFixed(0)}')),
+                  DropdownMenuItem(value: 'PME', child: Text('PME (Monthly Budget) - ₹${provider.pmeBalance.toStringAsFixed(0)}')),
+                ],
+                onChanged: (val) {
+                  setState(() {
+                    _moneySource = (widget.defaultSource == MoneySource.PERSONAL) ? MoneySource.PERSONAL : MoneySource.ISKCON;
+                    _derivedBudgetType = val == 'PME' ? BudgetType.PME : BudgetType.OTE;
+                    _selectedCategoryName = null;
+                    _selectedCategoryId = null;
+                  });
+                },
+              ),
               const SizedBox(height: 24),
               
               if (_moneySource == MoneySource.ISKCON || _moneySource == MoneySource.PERSONAL) ...[

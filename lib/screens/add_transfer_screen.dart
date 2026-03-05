@@ -42,6 +42,7 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
   String? _toCategoryId;
   
   String? _targetMonth;
+  double _runningTotal = 0;
 
   @override
   void initState() {
@@ -56,6 +57,7 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
       _fromCategoryId = t.fromCategoryId;
       _toCategoryId = t.toCategoryId;
       _targetMonth = t.targetMonth;
+      _runningTotal = t.amount;
       
       // We'll resolve category names in build() or after first frame
     } else {
@@ -80,6 +82,21 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
         });
       });
     }
+  }
+
+  void _updateRunningTotal(String val) {
+    try {
+       final parts = val.replaceAll(',', '').split(RegExp(r'[+\s]'));
+       double sum = 0;
+       for (var p in parts) {
+         if (p.trim().isNotEmpty) {
+           sum += double.tryParse(p.trim()) ?? 0;
+         }
+       }
+       setState(() {
+         _runningTotal = sum;
+       });
+    } catch (_) {}
   }
 
   @override
@@ -251,9 +268,14 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
               TextFormField(
                 controller: _amountController,
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                decoration: _inputDecoration('Amount').copyWith(prefixText: '₹ '),
-                keyboardType: TextInputType.number,
-                validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
+                decoration: _inputDecoration('Amount').copyWith(
+                    prefixText: '₹ ',
+                    suffixText: _amountController.text.contains(RegExp(r'[+\s]')) ? '= ₹${_runningTotal.toStringAsFixed(0)}' : '',
+                    suffixStyle: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)
+                ),
+                keyboardType: TextInputType.text,
+                onChanged: _updateRunningTotal,
+                validator: (val) => (val == null || val.isEmpty || _runningTotal == 0) ? 'Required' : null,
               ),
               const SizedBox(height: 16),
               InkWell(
@@ -391,7 +413,7 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
     final transfer = FundTransfer(
       id: widget.transferToEdit?.id ?? const Uuid().v4(),
       costCenterId: _selectedCostCenterId ?? provider.activeCostCenterId ?? '',
-      amount: double.parse(_amountController.text).abs(),
+      amount: _runningTotal,
       date: _selectedDate,
       remarks: _remarksController.text,
       type: _type,

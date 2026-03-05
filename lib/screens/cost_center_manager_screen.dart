@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../providers/accounting_provider.dart';
 import '../models/cost_center.dart';
 import '../services/firestore_service.dart';
@@ -19,6 +20,29 @@ class _CostCenterManagerScreenState extends State<CostCenterManagerScreen> {
   double _defaultOte = 0;
   String _pmeStartMonth = '2026-01';
   String _pmeEndMonth = '2026-12';
+  String _searchQuery = '';
+  final Set<String> _selectedCenterIds = {};
+  bool _isSelectionMode = false;
+  bool _isSearching = false;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedCenterIds.contains(id)) {
+        _selectedCenterIds.remove(id);
+        if (_selectedCenterIds.isEmpty) _isSelectionMode = false;
+      } else {
+        _isSelectionMode = true;
+        _selectedCenterIds.add(id);
+      }
+    });
+  }
 
   void _showAddDialog([CostCenter? center]) {
     if (center != null) {
@@ -104,79 +128,198 @@ class _CostCenterManagerScreenState extends State<CostCenterManagerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Manage Cost Centers')),
+      appBar: AppBar(
+        title: _isSearching
+                ? TextField(
+                    controller: _searchController,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                      hintText: 'Search cost centers...',
+                      hintStyle: TextStyle(color: Colors.white70),
+                      border: InputBorder.none,
+                    ),
+                    autofocus: true,
+                    onChanged: (val) => setState(() => _searchQuery = val),
+                  )
+                : const Text('Manage Cost Centers'),
+        actions: [
+          IconButton(
+            icon: Icon(_isSearching ? Icons.close : Icons.search),
+            onPressed: () => setState(() {
+              _isSearching = !_isSearching;
+              if (!_isSearching) {
+                _searchQuery = '';
+                _searchController.clear();
+              }
+            }),
+          ),
+        ],
+      ),
       body: Consumer<AccountingProvider>(
         builder: (context, provider, child) {
-          final centers = provider.costCenters;
-          return ListView.builder(
-            itemCount: centers.length,
-            itemBuilder: (context, index) {
-              final center = centers[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                child: Column(
-                  children: [
-                    ListTile(
-                      title: Text(center.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text(center.remarks.isEmpty ? 'No remarks' : center.remarks),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
+          var centers = provider.costCenters;
+          if (_searchQuery.isNotEmpty) {
+            centers = centers.where((c) => c.name.toLowerCase().contains(_searchQuery.toLowerCase()) || c.remarks.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+          }
+
+          double selectedSum = centers
+              .where((c) => _selectedCenterIds.contains(c.id))
+              .fold(0.0, (sum, c) => sum + provider.getCostCenterBudgetBalance(c.id));
+
+          return Column(
+            children: [
+              if (_isSelectionMode || _selectedCenterIds.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  color: Colors.teal.withOpacity(0.1),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
                         children: [
-                          Switch(
-                            value: center.isActive,
+                          Checkbox(
+                            value: centers.isNotEmpty && centers.every((c) => _selectedCenterIds.contains(c.id)),
                             onChanged: (val) {
-                              final updated = CostCenter(
-                                id: center.id,
-                                name: center.name,
-                                isActive: val,
-                                createdAt: center.createdAt,
-                                remarks: center.remarks,
-                                defaultPmeAmount: center.defaultPmeAmount,
-                                defaultOteAmount: center.defaultOteAmount,
-                                pmeStartMonth: center.pmeStartMonth,
-                                pmeEndMonth: center.pmeEndMonth,
-                              );
-                              FirestoreService().updateCostCenter(updated);
+                              setState(() {
+                                if (val == true) {
+                                  _selectedCenterIds.addAll(centers.map((c) => c.id));
+                                  _isSelectionMode = true;
+                                } else {
+                                  _selectedCenterIds.clear();
+                                  _isSelectionMode = false;
+                                }
+                              });
                             },
+                            activeColor: Colors.tealAccent,
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: () => _showAddDialog(center),
-                          ),
+                          const Text('Select All', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
                         ],
                       ),
-                      onTap: () {
-                        provider.setActiveCostCenter(center.id);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Switched to ${center.name}')),
-                        );
-                      },
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      Row(
                         children: [
-                          const Text('Budget Periods', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                          TextButton.icon(
-                            onPressed: () {
-                              provider.setActiveCostCenter(center.id);
-                              Navigator.pushNamed(context, '/manage-budget-periods');
-                            },
-                            icon: const Icon(Icons.account_balance_wallet_outlined, size: 18),
-                            label: const Text('Manage Budgets'),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.teal,
-                              visualDensity: VisualDensity.compact,
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              const Text('Selected Balance Sum:', style: TextStyle(fontSize: 10, color: Colors.tealAccent)),
+                              Text('₹${selectedSum.toStringAsFixed(0)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                            ],
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 20, color: Colors.grey),
+                            onPressed: () => setState(() {
+                              _selectedCenterIds.clear();
+                              _isSelectionMode = false;
+                            }),
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              );
-            },
+              Expanded(
+                child: ListView.builder(
+                  itemCount: centers.length,
+                  itemBuilder: (context, index) {
+                    final center = centers[index];
+                    final isSelected = _selectedCenterIds.contains(center.id);
+                    final balance = provider.getCostCenterBudgetBalance(center.id);
+
+                    return Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      color: isSelected ? Colors.teal.withOpacity(0.1) : null,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: isSelected ? Colors.tealAccent : Colors.transparent),
+                      ),
+                      child: InkWell(
+                        onLongPress: () => _toggleSelection(center.id),
+                        onTap: () {
+                          if (_isSelectionMode) {
+                            _toggleSelection(center.id);
+                          } else {
+                            provider.setActiveCostCenter(center.id);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Switched to ${center.name}')),
+                            );
+                          }
+                        },
+                        child: Column(
+                          children: [
+                            ListTile(
+                              leading: _isSelectionMode ? Checkbox(
+                                value: isSelected,
+                                onChanged: (_) => _toggleSelection(center.id),
+                                activeColor: Colors.tealAccent,
+                              ) : CircleAvatar(backgroundColor: Colors.teal.withOpacity(0.1), child: const Icon(Icons.business, color: Colors.teal)),
+                              title: Text(center.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                              subtitle: Text(center.remarks.isEmpty ? 'No remarks' : center.remarks),
+                              trailing: Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text('₹${balance.toStringAsFixed(0)}', style: TextStyle(fontWeight: FontWeight.bold, color: balance >= 0 ? Colors.greenAccent : Colors.redAccent)),
+                                  const Text('Balance', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                                ],
+                              ),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Switch(
+                                        value: center.isActive,
+                                        onChanged: (val) {
+                                          final updated = CostCenter(
+                                            id: center.id,
+                                            name: center.name,
+                                            isActive: val,
+                                            createdAt: center.createdAt,
+                                            remarks: center.remarks,
+                                            defaultPmeAmount: center.defaultPmeAmount,
+                                            defaultOteAmount: center.defaultOteAmount,
+                                            pmeStartMonth: center.pmeStartMonth,
+                                            pmeEndMonth: center.pmeEndMonth,
+                                          );
+                                          FirestoreService().updateCostCenter(updated);
+                                        },
+                                        activeColor: Colors.tealAccent,
+                                      ),
+                                      Text(center.isActive ? 'Active' : 'Inactive', style: TextStyle(fontSize: 11, color: center.isActive ? Colors.green : Colors.grey)),
+                                    ],
+                                  ),
+                                  Row(
+                                    children: [
+                                      TextButton.icon(
+                                        onPressed: () {
+                                          provider.setActiveCostCenter(center.id);
+                                          Navigator.pushNamed(context, '/manage-budget-periods');
+                                        },
+                                        icon: const Icon(Icons.account_balance_wallet_outlined, size: 16),
+                                        label: const Text('Budgets', style: TextStyle(fontSize: 12)),
+                                        style: TextButton.styleFrom(foregroundColor: Colors.teal),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.edit_outlined, size: 20),
+                                        onPressed: () => _showAddDialog(center),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -186,6 +329,7 @@ class _CostCenterManagerScreenState extends State<CostCenterManagerScreen> {
       ),
     );
   }
+
   Widget _buildRefinedField(String label, String initial, FormFieldSetter<String> onSaved, IconData icon, {int maxLines = 1}) {
     return TextFormField(
       initialValue: initial,
@@ -199,23 +343,6 @@ class _CostCenterManagerScreenState extends State<CostCenterManagerScreen> {
       maxLines: maxLines,
       validator: (val) => val == null || val.isEmpty ? 'Required' : null,
       onSaved: onSaved,
-    );
-  }
-
-  Widget _buildRefinedNumberField(String label, double initial, Function(double) onSaved) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextFormField(
-        initialValue: initial.toString(),
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: const Icon(Icons.currency_rupee, size: 20, color: Colors.teal),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          isDense: true,
-        ),
-        keyboardType: TextInputType.number,
-        onSaved: (val) => onSaved(double.tryParse(val ?? '0') ?? 0),
-      ),
     );
   }
 }

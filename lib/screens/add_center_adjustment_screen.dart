@@ -25,6 +25,7 @@ class _AddCenterAdjustmentScreenState extends State<AddCenterAdjustmentScreen> {
   String? _selectedCategoryId;
   DateTime _selectedDate = DateTime.now();
   BudgetType? _derivedBudgetType;
+  double _runningTotal = 0;
 
   @override
   void initState() {
@@ -37,7 +38,23 @@ class _AddCenterAdjustmentScreenState extends State<AddCenterAdjustmentScreen> {
       _selectedCategoryId = adj.categoryId;
       _selectedDate = adj.date;
       _derivedBudgetType = adj.budgetType;
+      _runningTotal = adj.amount;
     }
+  }
+
+  void _updateRunningTotal(String val) {
+    try {
+       final parts = val.replaceAll(',', '').split(RegExp(r'[+\s]'));
+       double sum = 0;
+       for (var p in parts) {
+         if (p.trim().isNotEmpty) {
+           sum += double.tryParse(p.trim()) ?? 0;
+         }
+       }
+       setState(() {
+         _runningTotal = sum;
+       });
+    } catch (_) {}
   }
 
   @override
@@ -119,9 +136,14 @@ class _AddCenterAdjustmentScreenState extends State<AddCenterAdjustmentScreen> {
               TextFormField(
                 controller: _amountController,
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                decoration: _inputDecoration('Amount').copyWith(prefixText: '₹ '),
-                keyboardType: TextInputType.number,
-                validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
+                decoration: _inputDecoration('Amount').copyWith(
+                    prefixText: '₹ ',
+                    suffixText: _amountController.text.contains(RegExp(r'[+\s]')) ? '= ₹${_runningTotal.toStringAsFixed(0)}' : '',
+                    suffixStyle: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)
+                ),
+                keyboardType: TextInputType.text,
+                onChanged: _updateRunningTotal,
+                validator: (val) => (val == null || val.isEmpty || _runningTotal == 0) ? 'Required' : null,
               ),
               const SizedBox(height: 16),
               InkWell(
@@ -206,7 +228,7 @@ class _AddCenterAdjustmentScreenState extends State<AddCenterAdjustmentScreen> {
       costCenterId: provider.activeCostCenterId!,
       categoryId: _selectedCategoryId!,
       type: _type,
-      amount: double.parse(_amountController.text).abs(),
+      amount: _runningTotal,
       date: _selectedDate,
       remarks: _remarksController.text,
       budgetType: _derivedBudgetType!,

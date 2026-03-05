@@ -25,10 +25,13 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
   final Set<String> _selectedExpenseIds = {};
   final Set<String> _selectedHistoryIds = {};
   
-  // Search State
+  // Search & Filter State
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  DateTimeRange? _selectedDateRange;
+  bool _isGroupedView = false;
+  bool _isSelectionMode = false;
 
   @override
   void initState() {
@@ -51,12 +54,15 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
     super.dispose();
   }
 
-  void _toggleSelection(String id) {
+  void _toggleSelection(String id, bool isHistory) {
     setState(() {
-      if (_selectedExpenseIds.contains(id)) {
-        _selectedExpenseIds.remove(id);
+      final targetSet = isHistory ? _selectedHistoryIds : _selectedExpenseIds;
+      if (targetSet.contains(id)) {
+        targetSet.remove(id);
+        if (_selectedExpenseIds.isEmpty && _selectedHistoryIds.isEmpty) _isSelectionMode = false;
       } else {
-        _selectedExpenseIds.add(id);
+        _isSelectionMode = true;
+        targetSet.add(id);
       }
     });
   }
@@ -336,6 +342,18 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
           historyEntries.retainWhere((entry) => (entry['searchBlob'] as String).contains(_searchQuery));
         }
 
+        if (_selectedDateRange != null) {
+          pendingExpenses = pendingExpenses.where((e) => 
+            e.date.isAfter(_selectedDateRange!.start.subtract(const Duration(days: 1))) && 
+            e.date.isBefore(_selectedDateRange!.end.add(const Duration(days: 1)))).toList();
+          
+          historyEntries.retainWhere((e) {
+            final date = e['date'] as DateTime;
+            return date.isAfter(_selectedDateRange!.start.subtract(const Duration(days: 1))) && 
+                   date.isBefore(_selectedDateRange!.end.add(const Duration(days: 1)));
+          });
+        }
+
         pendingExpenses.sort((a, b) => b.date.compareTo(a.date));
         historyEntries.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
 
@@ -366,7 +384,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
                     controller: _searchController,
                     style: const TextStyle(color: Colors.white),
                     decoration: const InputDecoration(
-                      hintText: 'Search...',
+                      hintText: 'Search remarks/centers...',
                       hintStyle: TextStyle(color: Colors.white70),
                       border: InputBorder.none,
                     ),
@@ -387,6 +405,11 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
                     }
                   });
                 },
+              ),
+              IconButton(
+                onPressed: () => setState(() => _isGroupedView = !_isGroupedView),
+                icon: Icon(_isGroupedView ? Icons.access_time : Icons.group_work),
+                tooltip: _isGroupedView ? 'Timeline' : 'Grouped',
               ),
             ],
             bottom: TabBar(
@@ -420,17 +443,71 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
                     children: [
                       Text('Current Pocket Balance', style: TextStyle(fontSize: 14, color: provider.isDarkMode ? Colors.tealAccent : Colors.teal.shade800)),
                       const SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       Text(
                         '₹${provider.personalBalance.toStringAsFixed(2)}',
                         style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: provider.isDarkMode ? Colors.white : Colors.teal.shade900),
                       ),
                       Text('Balance includes all advances and unssettled expenses.', style: TextStyle(fontSize: 12, color: provider.isDarkMode ? Colors.grey : Colors.grey.shade700)),
-                      if (hasSelection) ...[
+                      
+                      // Filter Row
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                             IconButton(
+                              onPressed: () async {
+                                final picked = await showDateRangePicker(
+                                  context: context, 
+                                  firstDate: DateTime(2020), 
+                                  lastDate: DateTime(2030),
+                                  initialDateRange: _selectedDateRange,
+                                );
+                                if (picked != null) setState(() => _selectedDateRange = picked);
+                              },
+                              icon: Icon(Icons.calendar_today, size: 20, color: _selectedDateRange != null ? Colors.tealAccent : Colors.grey),
+                              style: IconButton.styleFrom(backgroundColor: provider.isDarkMode ? Colors.white10 : Colors.teal.shade100),
+                            ),
+                            if (_selectedDateRange != null)
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 18),
+                                onPressed: () => setState(() => _selectedDateRange = null),
+                              ),
+                        ],
+                      ),
+
+                      if (_isSelectionMode || hasSelection) ...[
                         Divider(height: 24, color: provider.isDarkMode ? Colors.white24 : Colors.teal.withOpacity(0.3)),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('Selected Sum:', style: TextStyle(fontSize: 14, color: provider.isDarkMode ? Colors.tealAccent : Colors.teal.shade800, fontWeight: FontWeight.bold)),
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: _tabController.index == 0 
+                                      ? (_selectedExpenseIds.length == pendingExpenses.length && pendingExpenses.isNotEmpty)
+                                      : (_selectedHistoryIds.length == historyEntries.length && historyEntries.isNotEmpty),
+                                  onChanged: (val) {
+                                    setState(() {
+                                      if (val == true) {
+                                        _isSelectionMode = true;
+                                        if (_tabController.index == 0) {
+                                          _selectedExpenseIds.addAll(pendingExpenses.map((e) => e.id));
+                                        } else {
+                                          _selectedHistoryIds.addAll(historyEntries.map((e) => e['uniqueKey'] as String));
+                                        }
+                                      } else {
+                                        _selectedExpenseIds.clear();
+                                        _selectedHistoryIds.clear();
+                                        _isSelectionMode = false;
+                                      }
+                                    });
+                                  },
+                                  activeColor: Colors.tealAccent,
+                                ),
+                                const Text('Select All', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.tealAccent)),
+                              ],
+                            ),
                             Row(
                               children: [
                                 Text(
@@ -442,6 +519,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
                                   onPressed: () => setState(() {
                                     _selectedExpenseIds.clear();
                                     _selectedHistoryIds.clear();
+                                    _isSelectionMode = false;
                                   }),
                                 ),
                               ],
@@ -457,10 +535,14 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
                     controller: _tabController,
                     children: [
                       // Tab 1: Pending
-                      _buildPendingList(context, pendingExpenses),
+                      _isGroupedView 
+                        ? _buildGroupedPendingList(context, pendingExpenses)
+                        : _buildPendingList(context, pendingExpenses),
                       
                       // Tab 2: History
-                      _buildHistoryList(historyEntries),
+                      _isGroupedView
+                        ? _buildGroupedHistoryList(historyEntries)
+                        : _buildHistoryList(historyEntries),
                     ],
                   ),
                 ),
@@ -475,15 +557,24 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
     if (expenses.isEmpty) {
       return Center(child: Text(_searchQuery.isNotEmpty ? 'No matches found.' : 'No pending expenses.'));
     }
+    final provider = Provider.of<AccountingProvider>(context, listen: false);
+    return ListView.separated(
+      padding: const EdgeInsets.only(bottom: 80, top: 8),
+      itemCount: expenses.length,
+      separatorBuilder: (_, __) => Divider(color: provider.isDarkMode ? Colors.white10 : Colors.grey.shade300, height: 1),
+      itemBuilder: (context, index) => _buildPendingRow(context, expenses[index], provider),
+    );
+  }
+
+  Widget _buildGroupedPendingList(BuildContext context, List<Expense> expenses) {
+    if (expenses.isEmpty) {
+      return Center(child: Text(_searchQuery.isNotEmpty ? 'No matches found.' : 'No pending expenses.'));
+    }
 
     final provider = Provider.of<AccountingProvider>(context, listen: false);
-    
-    // Group
     final Map<String, List<Expense>> grouped = {};
     for (var e in expenses) {
-      if (!grouped.containsKey(e.costCenterId)) {
-        grouped[e.costCenterId] = [];
-      }
+      if (!grouped.containsKey(e.costCenterId)) grouped[e.costCenterId] = [];
       grouped[e.costCenterId]!.add(e);
     }
 
@@ -495,91 +586,96 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
         final centerExpenses = grouped[costCenterId]!;
         final centerName = _getCostCenterName(provider, costCenterId);
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
-                centerName,
-                style: TextStyle(color: provider.isDarkMode ? Colors.teal.shade200 : Colors.teal.shade800, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.1),
-              ),
-            ),
-            ...centerExpenses.map((e) {
-              final isSelected = _selectedExpenseIds.contains(e.id);
-              final catPath = _getCategoryPath(provider, e.categoryId);
-
-              // Bank Statement Style Row (Consistent with Ledger and History)
-              return InkWell(
-                onTap: () => _showEntryDetails(context, e, 'Expense'),
-                child: Container(
-                  color: isSelected ? Colors.teal.withOpacity(0.1) : null,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(
-                    children: [
-                      // Checkbox for selection
-                      SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: Checkbox(
-                          value: isSelected,
-                          onChanged: (val) => _toggleSelection(e.id),
-                          activeColor: Colors.tealAccent,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Icon Circle
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.redAccent.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.arrow_upward, color: Colors.redAccent, size: 20),
-                      ),
-                      const SizedBox(width: 16),
-                      // Details
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              DateFormat('MMM dd, yyyy').format(e.date),
-                              style: TextStyle(color: provider.isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600, fontSize: 11),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              e.remarks,
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: provider.isDarkMode ? null : Colors.black87),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                catPath,
-                                style: TextStyle(color: provider.isDarkMode ? Colors.white60 : Colors.black54, fontSize: 12),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      // Amount
-                      Text(
-                        '-₹${e.amount.toStringAsFixed(0)}',
-                        style: const TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
-            Divider(color: provider.isDarkMode ? null : Colors.grey.shade300),
-          ],
+        return Card(
+           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+           elevation: 0,
+           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white12)),
+           child: ExpansionTile(
+              initiallyExpanded: true,
+              title: Text(centerName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              subtitle: Text('${centerExpenses.length} items', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              children: centerExpenses.map((e) => _buildPendingRow(context, e, provider)).toList(),
+           ),
         );
       },
+    );
+  }
+
+  Widget _buildPendingRow(BuildContext context, Expense e, AccountingProvider provider) {
+    final isSelected = _selectedExpenseIds.contains(e.id);
+    final catPath = _getCategoryPath(provider, e.categoryId);
+
+    return InkWell(
+      onLongPress: () => _toggleSelection(e.id, false),
+      onTap: () {
+        if (_isSelectionMode) {
+          _toggleSelection(e.id, false);
+        } else {
+          _showEntryDetails(context, e, 'Expense');
+        }
+      },
+      child: Container(
+        color: isSelected ? Colors.teal.withOpacity(0.1) : null,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            if (_isSelectionMode) ...[
+              Checkbox(
+                value: isSelected,
+                onChanged: (val) => _toggleSelection(e.id, false),
+                activeColor: Colors.tealAccent,
+              ),
+              const SizedBox(width: 4),
+            ],
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(color: Colors.redAccent.withOpacity(0.1), shape: BoxShape.circle),
+              child: const Icon(Icons.arrow_upward, color: Colors.redAccent, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(DateFormat('MMM dd, yyyy').format(e.date), style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                  const SizedBox(height: 2),
+                  Text(e.remarks, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1),
+                  Text(catPath, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                ],
+              ),
+            ),
+            Text('-₹${e.amount.toStringAsFixed(0)}', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGroupedHistoryList(List<Map<String, dynamic>> entries) {
+    if (entries.isEmpty) {
+      return Center(child: Text(_searchQuery.isNotEmpty ? 'No matches found.' : 'No history found.'));
+    }
+    final groups = <String, List<Map<String, dynamic>>>{};
+    for (var e in entries) {
+      final key = DateFormat('MMMM yyyy').format(e['date'] as DateTime);
+      groups.putIfAbsent(key, () => []).add(e);
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(8),
+      children: groups.keys.map((groupKey) {
+        final items = groups[groupKey]!;
+        return Card(
+           margin: const EdgeInsets.only(bottom: 8),
+           elevation: 0,
+           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Colors.white12)),
+           child: ExpansionTile(
+              initiallyExpanded: true,
+              title: Text(groupKey, style: const TextStyle(fontWeight: FontWeight.bold)),
+              children: items.map((e) => _buildHistoryRow(e)).toList(),
+           ),
+        );
+      }).toList(),
     );
   }
 
@@ -591,119 +687,72 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
       builder: (context, provider, child) {
         return ListView.separated(
           itemCount: entries.length,
-          separatorBuilder: (_, __) => Divider(height: 1, indent: 16, endIndent: 16, color: provider.isDarkMode ? null : Colors.grey.shade300),
-          itemBuilder: (context, index) {
-            final entry = entries[index];
-            final amount = entry['amount'] as double;
-            final isPositive = amount > 0;
-            final title = entry['title'] as String;
-            final subtitle = entry['subtitle'] as String; // Context path
-            final dateLine = entry['dateLine'] as String;
-            final meta = entry['meta']; // For Transfers, remarks are here
-
-            final String uniqueId = entry['uniqueKey'];
-            final bool isSelected = _selectedHistoryIds.contains(uniqueId);
-
-            return InkWell(
-              onTap: () => _showEntryDetails(context, entry['item'], entry['type']),
-              child: Container(
-                color: isSelected ? Colors.teal.withOpacity(0.1) : null,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  children: [
-                    // Checkbox for summing
-                    SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: Checkbox(
-                        value: isSelected,
-                        onChanged: (val) {
-                          setState(() {
-                            if (val == true) {
-                              _selectedHistoryIds.add(uniqueId);
-                            } else {
-                              _selectedHistoryIds.remove(uniqueId);
-                            }
-                          });
-                        },
-                        activeColor: Colors.tealAccent,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Icon Circle
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: (entry['color'] as Color).withOpacity(0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        isPositive ? Icons.arrow_downward : Icons.arrow_upward,
-                        color: entry['color'],
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    // Details
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            dateLine,
-                            style: TextStyle(color: provider.isDarkMode ? Colors.grey.shade400 : Colors.grey.shade600, fontSize: 11),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            title,
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: provider.isDarkMode ? null : Colors.black87),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (subtitle.isNotEmpty) 
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                subtitle,
-                                style: TextStyle(color: provider.isDarkMode ? Colors.white60 : Colors.black54, fontSize: 12),
-                              ),
-                            ),
-                          if (meta != null && meta.toString().isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Text(
-                                meta,
-                                style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: provider.isDarkMode ? Colors.white70 : Colors.black54),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Amount
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          '${isPositive ? '+' : '-'}${amount.abs().toStringAsFixed(0)}',
-                          style: TextStyle(color: isPositive ? Colors.greenAccent : Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                        if (entry['type'] == 'Expense')
-                           Padding(
-                             padding: const EdgeInsets.only(top: 4),
-                             child: Text('Settled', style: TextStyle(fontSize: 10, color: provider.isDarkMode ? Colors.grey : Colors.grey.shade600)),
-                           ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
+          separatorBuilder: (_, __) => Divider(height: 1, color: provider.isDarkMode ? Colors.white10 : Colors.grey.shade300),
+          itemBuilder: (context, index) => _buildHistoryRow(entries[index]),
         );
       }
+    );
+  }
+
+  Widget _buildHistoryRow(Map<String, dynamic> entry) {
+    final provider = Provider.of<AccountingProvider>(context, listen: false);
+    final amount = entry['amount'] as double;
+    final isPositive = amount > 0;
+    final title = entry['title'] as String;
+    final subtitle = entry['subtitle'] as String;
+    final dateLine = entry['dateLine'] as String;
+    final meta = entry['meta'];
+    final String uniqueId = entry['uniqueKey'];
+    final bool isSelected = _selectedHistoryIds.contains(uniqueId);
+
+    return InkWell(
+      onLongPress: () => _toggleSelection(uniqueId, true),
+      onTap: () {
+        if (_isSelectionMode) {
+          _toggleSelection(uniqueId, true);
+        } else {
+          _showEntryDetails(context, entry['item'], entry['type']);
+        }
+      },
+      child: Container(
+        color: isSelected ? Colors.teal.withOpacity(0.1) : null,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            if (_isSelectionMode) ...[
+              Checkbox(
+                value: isSelected,
+                onChanged: (val) => _toggleSelection(uniqueId, true),
+                activeColor: Colors.tealAccent,
+              ),
+              const SizedBox(width: 4),
+            ],
+            Container(
+              width: 36, height: 36,
+              decoration: BoxDecoration(color: (entry['color'] as Color).withOpacity(0.1), shape: BoxShape.circle),
+              child: Icon(isPositive ? Icons.arrow_downward : Icons.arrow_upward, color: entry['color'], size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(dateLine, style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                  const SizedBox(height: 2),
+                  Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15), maxLines: 1),
+                  if (subtitle.isNotEmpty) Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                  if (meta != null && meta.toString().isNotEmpty) 
+                    Text(meta, style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey)),
+                ],
+              ),
+            ),
+            Text(
+              '${isPositive ? '+' : '-'}${amount.abs().toStringAsFixed(0)}',
+              style: TextStyle(color: isPositive ? Colors.greenAccent : Colors.redAccent, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

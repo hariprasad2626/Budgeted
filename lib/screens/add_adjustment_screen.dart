@@ -21,6 +21,7 @@ class _AddAdjustmentScreenState extends State<AddAdjustmentScreen> {
   
   AdjustmentType _type = AdjustmentType.DEBIT;
   DateTime _selectedDate = DateTime.now();
+  double _runningTotal = 0;
 
   @override
   void initState() {
@@ -31,7 +32,23 @@ class _AddAdjustmentScreenState extends State<AddAdjustmentScreen> {
       _remarksController.text = adj.remarks;
       _type = adj.type;
       _selectedDate = adj.date;
+      _runningTotal = adj.amount;
     }
+  }
+
+  void _updateRunningTotal(String val) {
+    try {
+       final parts = val.replaceAll(',', '').split(RegExp(r'[+\s]'));
+       double sum = 0;
+       for (var p in parts) {
+         if (p.trim().isNotEmpty) {
+           sum += double.tryParse(p.trim()) ?? 0;
+         }
+       }
+       setState(() {
+         _runningTotal = sum;
+       });
+    } catch (_) {}
   }
 
   @override
@@ -62,9 +79,14 @@ class _AddAdjustmentScreenState extends State<AddAdjustmentScreen> {
               TextFormField(
                 controller: _amountController,
                 style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                decoration: _inputDecoration('Amount').copyWith(prefixText: '₹ '),
-                keyboardType: TextInputType.number,
-                validator: (val) => (val == null || val.isEmpty) ? 'Required' : null,
+                decoration: _inputDecoration('Amount').copyWith(
+                  prefixText: '₹ ',
+                  suffixText: _amountController.text.contains(RegExp(r'[+\s]')) ? '= ₹${_runningTotal.toStringAsFixed(0)}' : '',
+                  suffixStyle: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)
+                ),
+                keyboardType: TextInputType.text,
+                onChanged: _updateRunningTotal,
+                validator: (val) => (val == null || val.isEmpty || _runningTotal == 0) ? 'Required' : null,
               ),
               const SizedBox(height: 16),
               InkWell(
@@ -167,7 +189,7 @@ class _AddAdjustmentScreenState extends State<AddAdjustmentScreen> {
     final adjustment = PersonalAdjustment(
       id: widget.adjustmentToEdit?.id ?? const Uuid().v4(),
       type: _type,
-      amount: double.parse(_amountController.text).abs(),
+      amount: _runningTotal,
       date: _selectedDate,
       remarks: _remarksController.text,
     );
