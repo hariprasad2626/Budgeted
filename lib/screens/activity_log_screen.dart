@@ -214,6 +214,7 @@ class _ActivityLogCard extends StatelessWidget {
       case EntityType.ALLOCATION: return 'budget_allocations';
       case EntityType.FIXED_AMOUNT: return 'fixed_amounts';
       case EntityType.BUDGET_PERIOD: return 'budget_periods';
+      case EntityType.COST_CENTER: return 'cost_centers';
     }
   }
 }

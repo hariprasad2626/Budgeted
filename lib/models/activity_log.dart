@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum ActivityType { CREATE, UPDATE, DELETE }
-enum EntityType { EXPENSE, DONATION, TRANSFER, ADJUSTMENT, CATEGORY, ALLOCATION, FIXED_AMOUNT, BUDGET_PERIOD }
+enum EntityType { EXPENSE, DONATION, TRANSFER, ADJUSTMENT, CATEGORY, ALLOCATION, FIXED_AMOUNT, BUDGET_PERIOD, COST_CENTER }
 
 class ActivityLog {
   final String id;
