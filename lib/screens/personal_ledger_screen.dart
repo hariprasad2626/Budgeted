@@ -282,8 +282,24 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
         // History Entries
         final List<Map<String, dynamic>> historyEntries = [];
 
+        // Add Fixed Amounts
+        for (var f in provider.fixedAmounts) {
+          historyEntries.add({
+            'title': f.remarks,
+            'subtitle': 'Opening / Fixed Balance',
+            'dateLine': DateFormat('dd MMM yyyy').format(f.createdAt),
+            'amount': f.amount,
+            'date': f.createdAt,
+            'type': 'Fixed',
+            'color': Colors.amberAccent,
+            'item': f,
+            'uniqueKey': f.id,
+            'searchBlob': '${f.remarks} opening fixed ${f.amount}'.toLowerCase(),
+          });
+        }
+
         // Add Transfers (Advances)
-        for (var t in provider.transfers.where((t) => t.type == TransferType.TO_PERSONAL && t.fromCategoryId == null && t.toCategoryId == null)) {
+        for (var t in provider.transfers.where((t) => t.type == TransferType.TO_PERSONAL)) {
           final ccName = _getCostCenterName(provider, t.costCenterId);
           historyEntries.add({
             'title': 'Advance from $ccName',
@@ -295,6 +311,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
             'type': 'Transfer',
             'color': Colors.blueAccent,
             'item': t,
+            'uniqueKey': t.id,
             'searchBlob': 'advance from $ccName ${t.remarks} ${t.amount}'.toLowerCase(),
           });
         }
@@ -303,6 +320,8 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
         for (var e in provider.allExpenses.where((x) => x.moneySource == MoneySource.PERSONAL && x.isSettled)) {
           final ccName = _getCostCenterName(provider, e.costCenterId);
           final catPath = _getCategoryPath(provider, e.categoryId);
+          
+          // The Expense itself (Negative)
           historyEntries.add({
             'title': e.remarks,
             'subtitle': '$ccName -> $catPath',
@@ -312,8 +331,25 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
             'type': 'Expense',
             'color': Colors.redAccent,
             'item': e,
+            'uniqueKey': e.id,
             'searchBlob': '${e.remarks} $ccName $catPath ${e.amount}'.toLowerCase(),
           });
+
+          // The Reimbursement (Positive) - if not settled against advance
+          if (!e.settledAgainstAdvance) {
+            historyEntries.add({
+              'title': 'Reimbursement: ${e.remarks}',
+              'subtitle': 'Credit to Pocket',
+              'dateLine': DateFormat('dd MMM yyyy').format(e.date),
+              'amount': e.amount,
+              'date': e.date,
+              'type': 'Reimbursement',
+              'color': Colors.tealAccent,
+              'item': e,
+              'uniqueKey': 'reimb_${e.id}',
+              'searchBlob': 'reimbursement ${e.remarks} ${e.amount}'.toLowerCase(),
+            });
+          }
         }
 
         // Add Manual Adjustments
@@ -327,6 +363,7 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
             'type': 'Adjustment',
             'color': a.type == AdjustmentType.CREDIT ? Colors.greenAccent : Colors.orangeAccent,
             'item': a,
+            'uniqueKey': a.id,
             'searchBlob': '${a.remarks} manual entry ${a.amount}'.toLowerCase(),
           });
         }
@@ -357,15 +394,9 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
         pendingExpenses.sort((a, b) => b.date.compareTo(a.date));
         historyEntries.sort((a, b) => (b['date'] as DateTime).compareTo(a['date'] as DateTime));
 
-        // Assign unique keys for history selection
-        for (int i = 0; i < historyEntries.length; i++) {
-          final item = historyEntries[i]['item'];
-          historyEntries[i]['uniqueKey'] = item.id;
-        }
-
         double pendingSum = pendingExpenses
             .where((e) => _selectedExpenseIds.contains(e.id))
-            .fold(0.0, (sum, e) => sum + e.amount);
+            .fold(0.0, (sum, e) => sum - e.amount); // Expenses reduce pocket balance
         
         double historySum = historyEntries
             .where((e) => _selectedHistoryIds.contains(e['uniqueKey']))
