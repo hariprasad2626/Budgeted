@@ -43,6 +43,30 @@ class BudgetCategory {
     };
   }
 
+  BudgetCategory copyWith({
+    String? id,
+    String? costCenterId,
+    String? category,
+    String? subCategory,
+    BudgetType? budgetType,
+    double? targetAmount,
+    bool? isActive,
+    String? remarks,
+    DateTime? createdAt,
+  }) {
+    return BudgetCategory(
+      id: id ?? this.id,
+      costCenterId: costCenterId ?? this.costCenterId,
+      category: category ?? this.category,
+      subCategory: subCategory ?? this.subCategory,
+      budgetType: budgetType ?? this.budgetType,
+      targetAmount: targetAmount ?? this.targetAmount,
+      isActive: isActive ?? this.isActive,
+      remarks: remarks ?? this.remarks,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
   factory BudgetCategory.fromMap(String id, Map<String, dynamic> map) {
     return BudgetCategory(
       id: id,

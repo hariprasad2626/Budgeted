@@ -1009,24 +1009,40 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
   }
 
   void _showDeleteConfirm(BuildContext context, BudgetCategory cat) {
+    final provider = Provider.of<AccountingProvider>(context, listen: false);
+    
+    bool hasExpenses = provider.allExpenses.any((e) => e.categoryId == cat.id);
+    bool hasTransfers = provider.transfers.any((t) => t.fromCategoryId == cat.id || t.toCategoryId == cat.id);
+    bool hasAdjustments = provider.centerAdjustments.any((a) => a.categoryId == cat.id);
+    bool hasDonations = provider.donations.any((d) => d.budgetCategoryId == cat.id);
+    
+    bool isUsed = hasExpenses || hasTransfers || hasAdjustments || hasDonations;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Category?'),
-        content: Text('Are you sure you want to delete "${cat.category} - ${cat.subCategory}"?'),
+        title: Text(isUsed ? 'Archive Category?' : 'Delete Category?'),
+        content: Text(isUsed 
+          ? 'This category has history tied to it. It will be archived instead of permanently deleted to protect your wallet balance and ledgers.\n\nAre you sure you want to archive "${cat.category} - ${cat.subCategory}"?' 
+          : 'Are you sure you want to permanently delete "${cat.category} - ${cat.subCategory}"?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
             onPressed: () async {
-              await FirestoreService().deleteCategory(cat);
+              if (isUsed) {
+                await FirestoreService().updateCategory(cat.copyWith(isActive: false), previousData: cat);
+              } else {
+                await FirestoreService().deleteCategory(cat);
+              }
+
               if (context.mounted) {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Category deleted successfully!')),
+                  SnackBar(content: Text(isUsed ? 'Category archived successfully!' : 'Category deleted successfully!')),
                 );
               }
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+            child: Text(isUsed ? 'Archive' : 'Delete', style: const TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
