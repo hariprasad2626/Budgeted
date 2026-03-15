@@ -38,7 +38,10 @@ git push origin main
 To ensure version consistency and trigger GitHub release popups/actions, ALWAYS push your code to GitHub whenever you deploy the web app.
 
 ### Step-by-Step Deployment:
-1.  **Bust Cache (Required)**: Increment the version tag in `web/index.html` (e.g., `<script src="flutter_bootstrap.js?v=87" async></script>`).
+1.  **Update App Versioning System (CRITICAL)**: You must update the version tag in the following **3 places** for a successful release:
+    *   **Internal App Build**: Update the `appVersion` string in `lib/providers/accounting_provider.dart` (e.g. `static const String appVersion = '1.1.27+87';`).
+    *   **Update Checker File**: Update `version`, `build_number`, and `timestamp` in `web/version.json`. This triggers the "Check for Updates" button on the UI.
+    *   **Browser Cache Buster**: Increment the `v=` number on the flutter_bootstrap tag within `web/index.html` (e.g., `<script src="flutter_bootstrap.js?v=87" async></script>`).
 2.  **Commit and Push to GitHub (MANDATORY)**:
     ```powershell
     git add .
