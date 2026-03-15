@@ -46,6 +46,9 @@ Future<void> reloadPage() async {
     debugPrint('Error during forceful reload: $e');
   }
   
+  // Clear local storage to force fresh state
+  html.window.localStorage.clear();
+  
   // Reload bypasses the browser cache
   html.window.location.href = html.window.location.href;
   html.window.location.reload();

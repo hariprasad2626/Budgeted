@@ -404,7 +404,7 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                       leading: CircleAvatar(
                         backgroundColor: Colors.teal.shade700.withOpacity(0.1),
                         radius: 20,
-                        child: Icon(Icons.category_rounded, size: 20, color: Colors.teal.shade500),
+                        child: Icon(Icons.category, size: 20, color: Colors.teal.shade500),
                       ),
                       title: Text(
                         mainCategory.toUpperCase(),
@@ -549,7 +549,7 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                     color: Colors.blueAccent.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.layers_outlined, size: 22, color: Colors.blueAccent)
+                  child: const Icon(Icons.view_module, size: 22, color: Colors.blueAccent)
                 ),
               title: Row(
                 children: [
