@@ -70,7 +70,7 @@ flutter pub get
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "`nBuilding Final APK (Release Mode)..."
-    flutter build apk --release
+    flutter build apk --release --no-tree-shake-icons
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "`n================================================================="
