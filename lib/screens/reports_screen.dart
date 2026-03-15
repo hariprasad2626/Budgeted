@@ -166,9 +166,11 @@ class ReportsScreen extends StatelessWidget {
           TextButton(
             onPressed: () async {
               await FirestoreService().deleteExpense(item);
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+              }
               if (context.mounted) {
-                Navigator.of(context).pop(); // Close confirmation
-                Navigator.of(context).pop(); // Close details
+                Navigator.pop(context);
               }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),

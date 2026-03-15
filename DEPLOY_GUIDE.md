@@ -34,21 +34,22 @@ git push origin main
 
 ---
 
-## 3. Manual Web Deployment (Local Terminal)
-Use this if you want to deploy immediately without pushing to GitHub, or for testing.
+## 3. Web Deployment Workflow (MANDATORY)
+To ensure version consistency and trigger GitHub release popups/actions, ALWAYS push your code to GitHub whenever you deploy the web app.
 
-**Prerequisites**: Firebase CLI initialized (`firebase login`).
-
-### Step-by-Step:
-1.  **Build the Web App**:
+### Step-by-Step Deployment:
+1.  **Bust Cache (Required)**: Increment the version tag in `web/index.html` (e.g., `<script src="flutter_bootstrap.js?v=87" async></script>`).
+2.  **Commit and Push to GitHub (MANDATORY)**:
     ```powershell
-    flutter build web --release --no-tree-shake-icons
+    git add .
+    git commit -m "Deploying latest UI fixes and version bump"
+    git push origin main
     ```
-2.  **Deploy to Firebase**:
+3.  **Deploy to Firebase (If GitHub Actions is not active or for immediate testing)**:
     ```powershell
+    flutter build web --release 
     firebase deploy --only hosting
     ```
-3.  **Bust Cache (Optional but Recommended)**: Increment the `appVersion` in `lib/providers/accounting_provider.dart` and the version tag in `web/index.html` (e.g., `?v=71`) before building.
 
 ---
 

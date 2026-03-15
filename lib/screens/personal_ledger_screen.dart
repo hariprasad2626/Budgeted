@@ -958,9 +958,11 @@ class _PersonalLedgerScreenState extends State<PersonalLedgerScreen> with Single
               else if (type == 'Transfer') await service.deleteFundTransfer(item);
               else if (type == 'Adjustment') await service.deletePersonalAdjustment(item);
               
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+              }
               if (context.mounted) {
-                Navigator.of(context).pop(); // Close confirmation dialog
-                Navigator.of(context).pop(); // Close details dialog
+                Navigator.pop(context);
               }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),

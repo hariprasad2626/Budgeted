@@ -848,9 +848,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 await service.deleteCostCenterAdjustment(item);
               }
               
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+              }
               if (context.mounted) {
-                Navigator.of(context).pop(); // Close confirmation dialog
-                Navigator.of(context).pop(); // Close details dialog
+                Navigator.pop(context);
               }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),

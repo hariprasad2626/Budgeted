@@ -26,6 +26,7 @@ class _AddCenterAdjustmentScreenState extends State<AddCenterAdjustmentScreen> {
   DateTime _selectedDate = DateTime.now();
   BudgetType? _derivedBudgetType;
   double _runningTotal = 0;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -177,11 +178,13 @@ class _AddCenterAdjustmentScreenState extends State<AddCenterAdjustmentScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
-                  onPressed: _submit,
-                  child: Text(
-                    widget.adjustmentToEdit == null ? 'SAVE CENTER ADJUSTMENT' : 'UPDATE ADJUSTMENT',
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                  ),
+                  onPressed: _isLoading ? null : _submit,
+                  child: _isLoading 
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : Text(
+                        widget.adjustmentToEdit == null ? 'SAVE CENTER ADJUSTMENT' : 'UPDATE ADJUSTMENT',
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                      ),
                 ),
               ),
               // Add extra padding at the bottom to ensure the last field is scrollable above the keyboard
@@ -234,12 +237,21 @@ class _AddCenterAdjustmentScreenState extends State<AddCenterAdjustmentScreen> {
       budgetType: _derivedBudgetType!,
     );
 
-    if (widget.adjustmentToEdit == null) {
-      await FirestoreService().addCostCenterAdjustment(adjustment);
-    } else {
-      await FirestoreService().updateCostCenterAdjustment(adjustment, previousData: widget.adjustmentToEdit);
+    setState(() => _isLoading = true);
+
+    try {
+      if (widget.adjustmentToEdit == null) {
+        await FirestoreService().addCostCenterAdjustment(adjustment);
+      } else {
+        await FirestoreService().updateCostCenterAdjustment(adjustment, previousData: widget.adjustmentToEdit);
+      }
+      
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     }
-    
-    if (mounted) Navigator.pop(context);
   }
 }

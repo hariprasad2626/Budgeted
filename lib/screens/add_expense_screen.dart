@@ -27,6 +27,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   DateTime _selectedDate = DateTime.now();
   BudgetType? _derivedBudgetType = BudgetType.OTE;
   double _runningTotal = 0;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -220,11 +221,13 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
-                  onPressed: _submit,
-                  child: Text(
-                    widget.expenseToEdit == null ? 'SAVE EXPENSE' : 'UPDATE EXPENSE',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                  ),
+                  onPressed: _isLoading ? null : _submit,
+                  child: _isLoading 
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : Text(
+                        widget.expenseToEdit == null ? 'SAVE EXPENSE' : 'UPDATE EXPENSE',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                      ),
                 ),
               ),
               // Add extra padding at the bottom to ensure the last field is scrollable above the keyboard
@@ -348,14 +351,23 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       budgetMonth: null,
     );
 
-    if (widget.expenseToEdit == null) {
-      await FirestoreService().addExpense(expense);
-    } else {
-      await FirestoreService().updateExpense(expense, previousData: widget.expenseToEdit);
-    }
-    
-    if (mounted) {
-      Navigator.pop(context);
+    setState(() => _isLoading = true);
+
+    try {
+      if (widget.expenseToEdit == null) {
+        await FirestoreService().addExpense(expense);
+      } else {
+        await FirestoreService().updateExpense(expense, previousData: widget.expenseToEdit);
+      }
+
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     }
   }
 }

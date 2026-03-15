@@ -994,9 +994,11 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
               else if (item is FundTransfer) await service.deleteFundTransfer(item);
               else if (item is CostCenterAdjustment) await service.deleteCostCenterAdjustment(item);
               
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+              }
               if (context.mounted) {
-                Navigator.of(context).pop(); // Close confirmation
-                Navigator.of(context).pop(); // Close details
+                Navigator.pop(context);
               }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
@@ -1088,7 +1090,7 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                 TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
                 ElevatedButton(
                   onPressed: () async {
-                    final newAmount = runningTotal;
+                    final newAmount = double.tryParse(amountController.text.replaceAll(',', '')) ?? 0.0;
                     
                     // Validation: Check if this update exceeds strict budget limits
                     // We need to temporarily simulate the change
@@ -1217,7 +1219,7 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                   onPressed: () async {
                     if (categoryController.text.isEmpty) return;
                     
-                    final newAmount = runningTotal;
+                    final newAmount = double.tryParse(amountController.text.replaceAll(',', '')) ?? 0.0;
                     
                     // Validation for Strict Rules
                     final otherCategories = provider.categories.where((c) => c.budgetType == budgetType);

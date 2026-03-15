@@ -43,6 +43,7 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
   
   String? _targetMonth;
   double _runningTotal = 0;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -309,11 +310,13 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
-                  onPressed: _submit,
-                  child: Text(
-                    widget.transferToEdit == null ? 'RECORD TRANSFER' : 'UPDATE TRANSFER',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                  ),
+                  onPressed: _isLoading ? null : _submit,
+                  child: _isLoading 
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : Text(
+                        widget.transferToEdit == null ? 'RECORD TRANSFER' : 'UPDATE TRANSFER',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                      ),
                 ),
               ),
               // Add extra padding at the bottom to ensure the last field is scrollable above the keyboard
@@ -422,14 +425,23 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
       targetMonth: _targetMonth,
     );
 
-    if (widget.transferToEdit == null) {
-      await FirestoreService().addFundTransfer(transfer);
-    } else {
-      await FirestoreService().updateFundTransfer(transfer, previousData: widget.transferToEdit);
-    }
-    
-    if (mounted) {
-      Navigator.pop(context);
+    setState(() => _isLoading = true);
+
+    try {
+      if (widget.transferToEdit == null) {
+        await FirestoreService().addFundTransfer(transfer);
+      } else {
+        await FirestoreService().updateFundTransfer(transfer, previousData: widget.transferToEdit);
+      }
+
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     }
   }
 }
