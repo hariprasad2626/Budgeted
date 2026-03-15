@@ -210,7 +210,8 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
     }
 
     double poolBalance = type == BudgetType.PME ? provider.pmeBalance : provider.oteBalance;
-    double poolBudget = type == BudgetType.PME ? provider.totalPmeBudgeted : provider.totalOteBudgeted;
+    // Effective Budget = Current Balance + Money already spent. This accounts for transfers/adjustments.
+    double poolBudget = poolBalance + totalSpent;
     double earmarked = totalActiveLimit; // Sum of category limits
     double budgetGap = poolBudget - earmarked;
 
