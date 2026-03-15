@@ -209,6 +209,11 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
       groupBudgets[key] = groupTotal;
     }
 
+    double poolBalance = type == BudgetType.PME ? provider.pmeBalance : provider.oteBalance;
+    double poolBudget = type == BudgetType.PME ? provider.totalPmeBudgeted : provider.totalOteBudgeted;
+    double earmarked = totalActiveLimit; // Sum of category limits
+    double budgetGap = poolBudget - earmarked;
+
     double selectedSum = items
         .where((c) => _selectedCategoryIds.contains(c.id))
         .fold(0.0, (sum, c) {
@@ -293,7 +298,7 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${type.name} PERFORMANCE',
+                          '${type.name} POOL BALANCE',
                           style: TextStyle(
                             fontSize: 11, 
                             fontWeight: FontWeight.w800, 
@@ -302,9 +307,24 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          '₹${(totalActiveLimit - totalSpent).toStringAsFixed(0)} Remaining',
-                          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                        Row(
+                          children: [
+                            Text(
+                              '₹${poolBalance.toStringAsFixed(0)}',
+                              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              budgetGap < 0 
+                                ? '(₹${budgetGap.abs().toStringAsFixed(0)} Error: Over-Earmarked)'
+                                : '(₹${budgetGap.toStringAsFixed(0)} Unallocated)',
+                              style: TextStyle(
+                                fontSize: 11, 
+                                fontWeight: FontWeight.bold,
+                                color: budgetGap < 0 ? Colors.redAccent : Colors.teal.shade400
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -319,10 +339,21 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                     Expanded(
                       child: _buildMetricTile(
                         context, 
-                        'Total Limit', 
-                        '₹${totalActiveLimit.toStringAsFixed(0)}', 
-                        Icons.credit_card, 
+                        'Pool Budget', 
+                        '₹${poolBudget.toStringAsFixed(0)}', 
+                        Icons.account_balance, 
                         Colors.blue,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildMetricTile(
+                        context, 
+                        'Total Earmarked', 
+                        '₹${totalActiveLimit.toStringAsFixed(0)}', 
+                        Icons.assignment_turned_in, 
+                        Colors.purple,
+                        trend: poolBudget > 0 ? (totalActiveLimit / poolBudget) : 0,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -331,19 +362,9 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                         context, 
                         'Total Spent', 
                         '₹${totalSpent.toStringAsFixed(0)}', 
-                        Icons.account_balance_wallet, 
+                        Icons.shopping_bag, 
                         Colors.orange,
                         trend: totalActiveLimit > 0 ? (totalSpent / totalActiveLimit) : 0,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildMetricTile(
-                        context, 
-                        'Master Wallet', 
-                        '₹${provider.walletBalance.toStringAsFixed(0)}', 
-                        Icons.account_balance, 
-                        Colors.purple,
                       ),
                     ),
                   ],
