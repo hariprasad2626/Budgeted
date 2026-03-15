@@ -402,13 +402,18 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                       },
                       tilePadding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                       leading: CircleAvatar(
-                        backgroundColor: Colors.teal.withOpacity(0.1),
-                        radius: 18,
-                        child: Icon(Icons.folder_shared, size: 18, color: Colors.teal.shade400),
+                        backgroundColor: Colors.teal.shade700.withOpacity(0.1),
+                        radius: 20,
+                        child: Icon(Icons.category_rounded, size: 20, color: Colors.teal.shade500),
                       ),
                       title: Text(
-                        mainCategory,
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                        mainCategory.toUpperCase(),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900, 
+                          fontSize: 14, 
+                          letterSpacing: 1.2,
+                          color: isDark ? Colors.teal.shade300 : Colors.teal.shade700
+                        ),
                       ),
                       subtitle: Text(
                         '${subItems.length} Sub-Categories • ₹${groupBudgets[mainCategory]!.toStringAsFixed(0)}',
@@ -538,7 +543,14 @@ class _CategoryManagerScreenState extends State<CategoryManagerScreen> {
                 value: isSelected,
                 onChanged: (_) => _toggleSelection(cat.id),
                 activeColor: Colors.tealAccent,
-              ) : Icon(Icons.folder, size: 28, color: Colors.teal.shade400),
+              ) : Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blueAccent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.layers_outlined, size: 22, color: Colors.blueAccent)
+                ),
               title: Row(
                 children: [
                 Expanded(
